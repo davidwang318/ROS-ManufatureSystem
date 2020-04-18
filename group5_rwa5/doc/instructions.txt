@@ -1,0 +1,14 @@
+#Start Gazebo
+source /opt/ros/melodic/setup.bash
+source ~/catkin_ws/devel/setup.bash
+roslaunch Group5_PickAndPlace ariac_manager.launch
+
+
+#Start moveit for arm1
+source ~/catkin_ws/install/setup.bash
+roslaunch ur10_moveit_config move_group.launch arm_namespace:=/ariac/arm1
+roslaunch ur10_moveit_config move_group.launch arm_namespace:=/ariac/arm2
+
+
+#Start node
+rosrun Group5_PickAndPlace main_node
