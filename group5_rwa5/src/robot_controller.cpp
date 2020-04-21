@@ -8,25 +8,25 @@
  * Class attributes are initialized in the constructor init list
  * You can instantiate another robot by passing the correct parameter to the constructor
  */
-RobotController::RobotController(std::string arm_id) :
-    robot_controller_nh_("/ariac/"+arm_id),
-    robot_controller_options("manipulator",
-            "/ariac/"+arm_id+"/robot_description",
-            robot_controller_nh_),
-    robot_move_group_(robot_controller_options) {
-        ROS_WARN(">>>>> RobotController");
+RobotController::RobotController(std::string arm_id): robot_controller_nh_("/ariac/"+arm_id),
+                                                      robot_controller_options("manipulator",
+                                                      "/ariac/"+arm_id+"/robot_description", robot_controller_nh_),
+                                                      robot_move_group_(robot_controller_options) {
 
     robot_move_group_.setPlanningTime(20);
     robot_move_group_.setNumPlanningAttempts(10);
     robot_move_group_.setPlannerId("RRTConnectkConfigDefault");
     robot_move_group_.setMaxVelocityScalingFactor(0.9);
     robot_move_group_.setMaxAccelerationScalingFactor(0.9);
-    // robot_move_group_.setEndEffector("moveit_ee");
     robot_move_group_.allowReplanning(true);
     
     counter_ = 0;
     drop_flag_ = false;
     offset_ = 0.025;
+
+    // Add an attribute to prevent occlusion in PrepareRobot function
+    poseState = "";
+    arm_id_ = arm_id;
 
     //--These are joint positions used for the home position
     if(arm_id == "arm1"){
@@ -34,11 +34,13 @@ RobotController::RobotController(std::string arm_id) :
         binJointPose2_ = {0.4, 3.14, -0.7, 2.2, 3.2, 4.7, 0};
         binJointPose3_ = {-0.4, 3.14, -0.7, 2.2, 3.2, 4.7, 0};
         binJointPose4_ = {-1.2, 3.14, -0.7, 2.2, 3.2, 4.7, 0};
-        // binJointPose4_ = {-1.1, 3.14, -1, 2.2, 2, 3.2, 0};
+        binJointPose5_ = binJointPose4_;
         beltJointPose_ = {1, 0, -1.1, 1.9, 3.9, 4.7, 0};
         dropJointPose_ = {2.0, 2.3, -0.5, 1.3, 3.9, 4.7, 0};
-        transJointPose_ = {2.0, 0, -1.1, 1.9, 3.9, 4.7, 0};
-        endJointPose_ = {2.0, 1.45, -0.5, 1.3, 3.9, 4.7, 0};
+        transJointPose_ = {0, 4.21, -1.1, 1.9, 3.9, 4.7, 0};
+        endJointPose_ = {2.0, 1.45, -1.1, 1.9, 3.9, 4.7, 0};
+        // Add 1 special pose to prevent occlusion
+        occluJointPose_ = {-1.2, 3.14, -1.1, 2.2, 3.2, 4.7, 0};
 
         //--topic used to get the status of the gripper
         gripper_subscriber_ = gripper_nh_.subscribe(
@@ -57,15 +59,15 @@ RobotController::RobotController(std::string arm_id) :
 
     }
     else{
-        transJointPose_ = {0.05, 1.365, -0.88, 1.75, 3.9, 4.7, 0};
+        binJointPose2_ = binJointPose3_;
         binJointPose3_ = {1.1, 2.6, -0.7, 2.37, 3, 4.7, 0};
-        // binJointPose3_ = {1.1, 2.6, -0.7, 2.2, 3.2, 4.7, 0};
         binJointPose4_ = {0.7, 3.14, -0.7, 2.2, 3.2, 4.7, 0};
         binJointPose5_ = {-0.1, 3.14, -0.7, 2.2, 3.2, 4.7, 0};
         binJointPose6_ = {-0.9, 3.14, -0.7, 2.2, 3.2, 4.7, 0};
         dropJointPose_ = {-1.5, 3.9, -0.5, 1.3, 3.9, 4.7, 0};
-        // transJointPose_ = {-2.0, 0, -1.1, 1.9, 3.9, 4.7, 0};
+        transJointPose_ = {0, 1.57, -1.1, 1.9, 3.9, 4.7, 0};
         endJointPose_ = {-1.5, 4.5, -0.5, 1.3, 3.9, 4.7, 0};
+        occluJointPose_ = {1.1, 2.6, -1.1, 2.37, 3, 4.7, 0};
 
         //--topic used to get the status of the gripper
         gripper_subscriber_ = gripper_nh_.subscribe(
@@ -82,16 +84,10 @@ RobotController::RobotController(std::string arm_id) :
         gripper_client_ = robot_controller_nh_.serviceClient<osrf_gear::VacuumGripperControl>(
                 "/ariac/arm2/gripper/control");
     }
-    // ===========================================
-
 }
 
 RobotController::~RobotController() {}
 
-/**
- *
- * @return
- */
 bool RobotController::Planner() {
     ROS_INFO_STREAM("Planning started...");
     if (robot_move_group_.plan(robot_planner_) ==
@@ -129,8 +125,7 @@ void RobotController::GoToTarget(const geometry_msgs::Pose& pose) {
     ROS_INFO_STREAM("Point reached...");
 }
 
-void RobotController::GoToTarget(
-        std::initializer_list<geometry_msgs::Pose> list) {
+void RobotController::GoToTarget(std::initializer_list<geometry_msgs::Pose> list) {
     ros::AsyncSpinner spinner(4);
     spinner.start();
 
@@ -172,7 +167,18 @@ void RobotController::PrepareRobot(std::string task) {
     else if (task == "belt") jointPose = beltJointPose_;
     else if (task == "drop") jointPose = dropJointPose_;
     else if (task == "trans") jointPose = transJointPose_;
+    else if (task == "occlusion") jointPose = occluJointPose_;
     else jointPose = endJointPose_;
+
+    // Handle possible occlusion
+    if (arm_id_ == "arm1"){
+        if(task == "end" && poseState == "bin5") PrepareRobot("occlusion");
+    }
+    else{
+        if(task == "end" && poseState == "bin2") PrepareRobot("occlusion");
+    }
+
+    poseState = task;
 
     robot_move_group_.setJointValueTarget(jointPose);
     // this->execute();
@@ -180,13 +186,13 @@ void RobotController::PrepareRobot(std::string task) {
     spinner.start();
     if (this->Planner()) {
         robot_move_group_.move();
-        ros::Duration(1.5).sleep();
+        // ros::Duration(1.5).sleep();
     }
     ROS_INFO("Send Robot To %s Position Complete!", task.c_str());
 
-    robot_tf_listener_.waitForTransform("arm1_linear_arm_actuator", "arm1_ee_link",
+    robot_tf_listener_.waitForTransform(arm_id_+"_linear_arm_actuator", arm_id_+"_ee_link",
                                             ros::Time(0), ros::Duration(10));
-    robot_tf_listener_.lookupTransform("/arm1_linear_arm_actuator", "/arm1_ee_link",
+    robot_tf_listener_.lookupTransform("/"+arm_id_+"_linear_arm_actuator", "/"+arm_id_+"_ee_link",
                                            ros::Time(0), robot_tf_transform_);
 
 
@@ -199,9 +205,9 @@ void RobotController::PrepareRobot(std::string task) {
     tf::Matrix3x3(q).getRPY(roll_def_,pitch_def_,yaw_def_);
 
 
-    robot_tf_listener_.waitForTransform("world", "arm1_ee_link", ros::Time(0),
+    robot_tf_listener_.waitForTransform("world", arm_id_+"_ee_link", ros::Time(0),
                                             ros::Duration(10));
-    robot_tf_listener_.lookupTransform("/world", "/arm1_ee_link", ros::Time(0),
+    robot_tf_listener_.lookupTransform("/world", "/"+arm_id_+"_ee_link", ros::Time(0),
                                            robot_tf_transform_);
 
     home_cart_pose_.position.x = robot_tf_transform_.getOrigin().x();
@@ -292,10 +298,9 @@ bool RobotController::DropPart(geometry_msgs::Pose part_pose) {
 
     if (gripper_state_){//--while the part is still attached to the gripper
         //--move the robot to the end of the rail
-         ROS_INFO_STREAM("Moving towards AGV1...");
+         ROS_INFO_STREAM("Moving towards AGV...");
 
-         robot_move_group_.setJointValueTarget(endJointPose_);
-         this->Execute();
+         PrepareRobot("end");
          ros::Duration(0.5).sleep();
 
          part_pose.position.z += 0.1;
@@ -307,23 +312,6 @@ bool RobotController::DropPart(geometry_msgs::Pose part_pose) {
          
          part_pose.position.z += 0.2;
          this->GoToTarget(part_pose);
-
-//        auto temp_pose = part_pose;
-//        temp_pose.position.z += 0.5;
-//        this->GoToTarget({temp_pose, part_pose});
-//        ros::Duration(5).sleep();
-//        ros::spinOnce();
-//
-//
-//        ROS_INFO_STREAM("Actuating the gripper...");
-//        this->GripperToggle(false);
-//
-//        ros::spinOnce();
-//        if (!gripper_state_) {
-//            ROS_INFO_STREAM("Going to home position...");
-//            this->GoToTarget({temp_pose, home_cart_pose_});
-//            ros::Duration(3.0).sleep();
-//        }
     }
 
     drop_flag_ = false;

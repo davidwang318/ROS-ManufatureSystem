@@ -58,6 +58,17 @@ private:
     std::string object;
     bool plan_success_;
 
+    geometry_msgs::Pose home_cart_pose_;
+    geometry_msgs::Quaternion fixed_orientation_;
+    geometry_msgs::Pose agv_position_;
+
+    double offset_;
+    double roll_def_,pitch_def_,yaw_def_;
+    tf::Quaternion q;
+    int counter_;
+    bool gripper_state_, drop_flag_;
+
+    // Attributes for PrepareRobot
     std::vector<double> binJointPose1_;
     std::vector<double> binJointPose2_;
     std::vector<double> binJointPose3_;
@@ -68,15 +79,9 @@ private:
     std::vector<double> dropJointPose_;
     std::vector<double> transJointPose_;
     std::vector<double> endJointPose_;
+    std::vector<double> occluJointPose_;
+    std::string poseState;
+    std::string arm_id_;
 
-    geometry_msgs::Pose home_cart_pose_;
-    geometry_msgs::Quaternion fixed_orientation_;
-    geometry_msgs::Pose agv_position_;
-
-    double offset_;
-    double roll_def_,pitch_def_,yaw_def_;
-    tf::Quaternion q;
-    int counter_;
-    bool gripper_state_, drop_flag_;
 };
 #endif //SRC_ROBOT_CONTROLLER_H

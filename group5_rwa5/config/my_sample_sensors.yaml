@@ -9,11 +9,16 @@ sensors:
     pose:
       xyz: [0.95, 2.6, 0.92]
       rpy: [0, 0, 0]
-  logical_camera_0:
+  logical_camera_0: # Arm1 belt
     type: logical_camera
     pose:
       xyz: [1.504562, 2.230079, 1.225514]
       rpy: [3.125554, 0.948323, 3.136133]
+  logical_camera_7: # Transition
+    type: logical_camera
+    pose:
+      xyz: [0.726594, 0, 1.218169]
+      rpy: [3.128093, 0.805412, 3.139429]
   logical_camera_6:
     type: logical_camera
     pose:

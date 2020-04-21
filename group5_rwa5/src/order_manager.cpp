@@ -8,8 +8,6 @@
 #include <std_srvs/Trigger.h>
 
 
-
-//AriacOrderManager::AriacOrderManager(): arm1_{"arm1"}, arm2_{"arm2"}
 AriacOrderManager::AriacOrderManager(): arm1_{"arm1"}, arm2_{"arm2"}
 {
     order_subscriber_ = order_manager_nh_.subscribe(
@@ -18,7 +16,9 @@ AriacOrderManager::AriacOrderManager(): arm1_{"arm1"}, arm2_{"arm2"}
     current_order = 0;
     place_time = 0;
     agv_id = 0;
-
+    trans_pose.position.x = 0.3;
+    trans_pose.position.y = 0;
+    trans_pose.position.z = 1;
 }
 
 AriacOrderManager::~AriacOrderManager(){}
@@ -49,109 +49,78 @@ std::string AriacOrderManager::GetProductFrame(std::string product_type) {
 }
 
 bool AriacOrderManager::PickAndPlace(const std::pair<std::string,geometry_msgs::Pose> product_type_pose, int agv_id, int whichArm, bool transition, int placed_index) {
+    // Select the primary arm and the secondary arm
+    auto pri_arm = &arm1_, sec_arm = &arm2_;
+    if (whichArm == 2) pri_arm = &arm2_, sec_arm = &arm1_;
+
+    // Print the part type and frame
     std::string product_type = product_type_pose.first;
-    ROS_WARN_STREAM("Product type >>>> " << product_type);
     std::string product_frame = this->GetProductFrame(product_type);
+    ROS_WARN_STREAM("Product type >>>> " << product_type);
     ROS_WARN_STREAM("Product frame >>>> " << product_frame);
-    
+
+    // Get and offset the part pose    
     auto part_pose = camera_.GetPartPose("/world",product_frame);
     this -> offsetPose(product_type, part_pose);
-    // std::cout << "///////////////////////" <<part_pose.position.z << std::endl;
-    // Pick the part
-    bool failed_pick = false;
-    if (whichArm == 1) failed_pick = arm1_.PickPart(part_pose);
-    else failed_pick = arm2_.PickPart(part_pose);
-    ROS_WARN_STREAM("Picking up state " << failed_pick);
+
+    // Pick the part 
+    bool failed_pick = pri_arm -> PickPart(part_pose);
     while(!failed_pick){
         part_pose.position.z -= 0.03;
-        // std::cout << "///////////////////////" <<part_pose.position.z << std::endl;
-        if (whichArm == 1) failed_pick = arm1_.PickPart(part_pose);
-        else failed_pick = arm2_.PickPart(part_pose);
+        failed_pick = pri_arm -> PickPart(part_pose);
     }
 
-    // Is it transition?
+    // Transmitted to other side by case
     if (transition){
-        if (whichArm == 1){
-            arm1_.PrepareRobot("bin4");
-            arm1_.GripperToggle(false);
-            arm1_.PrepareRobot("bin2");
-            arm2_.PrepareRobot("bin4");
+        pri_arm -> PrepareRobot("trans");
+        auto tmp = trans_pose;
+        auto trans_pose_up = trans_pose;
+        trans_pose_up.position.z += 0.3;
+        this -> offsetPose(product_type, trans_pose);
+        pri_arm -> GoToTarget(trans_pose);
+        pri_arm -> GripperToggle(false);
+        pri_arm -> GoToTarget(trans_pose_up);
+        if (whichArm == 1) pri_arm -> PrepareRobot("bin2");
+        else pri_arm -> PrepareRobot("bin5");
+        sec_arm -> PrepareRobot("trans");
+        trans_pose = tmp;
 
-            product_frame[15] = '4';
-            whichArm = 2;
-            part_pose = camera_.GetPartPose("/world",product_frame);
-            this -> offsetPose(product_type, part_pose);
+        whichArm = 2; std::swap(pri_arm, sec_arm);
 
-            failed_pick = arm2_.PickPart(part_pose);
-            while(!failed_pick){
-                part_pose.position.z -= 0.03;
-                failed_pick = arm2_.PickPart(part_pose);
-            }
-        }
-        else {
-            arm2_.PrepareRobot("bin3");
-            arm2_.GripperToggle(false);
-            arm2_.PrepareRobot("bin5");
-            arm1_.PrepareRobot("bin3");
+        product_frame[15] = '7';
+        part_pose = camera_.GetPartPose("/world",product_frame);
+        this -> offsetPose(product_type, part_pose);
 
-            product_frame[15] = '3';
-            whichArm = 1;
-            part_pose = camera_.GetPartPose("/world",product_frame);
-            this -> offsetPose(product_type, part_pose);
-
-            failed_pick = arm1_.PickPart(part_pose);
-            while(!failed_pick){
-                part_pose.position.z -= 0.03;
-                failed_pick = arm1_.PickPart(part_pose);
-            }
+        failed_pick = pri_arm -> PickPart(part_pose);
+        while(!failed_pick){
+            part_pose.position.z -= 0.03;
+            failed_pick = pri_arm -> PickPart(part_pose);      
         }
     }
 
-    //--get the pose of the object in the tray from the order
+    // get the pose of the object in the tray from the order
     geometry_msgs::Pose drop_pose = product_type_pose.second;
-
     geometry_msgs::PoseStamped StampedPose_in, StampedPose_out;
+    StampedPose_in.header.frame_id = "/kit_tray_" + std::to_string(agv_id);
+    StampedPose_in.pose = drop_pose;
+    part_tf_listener_.transformPose("/world",StampedPose_in,StampedPose_out);
 
-    if(agv_id==1){
-        StampedPose_in.header.frame_id = "/kit_tray_1";
-        StampedPose_in.pose = drop_pose;
-        ROS_INFO_STREAM("StampedPose_int (" << StampedPose_in.pose.position.x <<","<< StampedPose_in.pose.position.y << "," << StampedPose_in.pose.position.z<<")");
-        part_tf_listener_.transformPose("/world",StampedPose_in,StampedPose_out);
-        // StampedPose_out.pose.position.z += 0.1;
-        // StampedPose_out.pose.position.y -= 0.2;
-        ROS_INFO_STREAM("StampedPose_out (" << StampedPose_out.pose.position.x <<","<< StampedPose_out.pose.position.y << "," << StampedPose_out.pose.position.z<<")");
+    // Offset the pose for safety
+    if(product_type == "pulley_part") StampedPose_out.pose.position.z += 0.07;
+    else if(product_type == "disk_part") StampedPose_out.pose.position.z += 0.02;
 
-    }
-    else{
-        StampedPose_in.header.frame_id = "/kit_tray_2";
-        StampedPose_in.pose = drop_pose;
-        //ROS_INFO_STREAM("StampedPose_in " << StampedPose_in.pose.position.x);
-        part_tf_listener_.transformPose("/world",StampedPose_in,StampedPose_out);
-        // StampedPose_out.pose.position.z += 0.1;
-        // StampedPose_out.pose.position.y += 0.2;
-        //ROS_INFO_STREAM("StampedPose_out " << StampedPose_out.pose.position.x);
+    // Drop the part on the tray and check its quality
+    auto result = pri_arm -> DropPart(StampedPose_out.pose);
+    if(camera_.CheckForQuality(whichArm)){
+        auto tmp = pri_arm -> PickPart(StampedPose_out.pose);
+        pri_arm -> PrepareRobot("drop");
+        pri_arm -> GripperToggle(false);
+        return false;
     }
 
-    if (whichArm == 1) {
-        auto result = arm1_.DropPart(StampedPose_out.pose);
-        if(camera_.CheckForQuality(1)){
-            auto tmp = arm1_.PickPart(StampedPose_out.pose);
-            arm1_.PrepareRobot("drop");
-            arm1_.GripperToggle(false);
-            return false;
-        }
-    }
-    else {
-        auto result = arm2_.DropPart(StampedPose_out.pose);
-        if(camera_.CheckForQuality(2)){
-            auto tmp = arm2_.PickPart(StampedPose_out.pose);
-            arm2_.PrepareRobot("drop");
-            arm2_.GripperToggle(false);
-            return false;
-        }
-    }
-    std::cout << "---------" << placed_index << std::endl;
+    // Save the sequence and position of the part for update check 
     placed_order[placed_index] = StampedPose_out.pose;
+
     return true;
 }
 
@@ -286,21 +255,23 @@ void AriacOrderManager::PickFromBin() {
     std::cout << whichBin << std::endl;
     bool pick_n_place_success{false};
     if (agv_id_ == 1){
-        if(whichBin == "bin5" || whichBin == "bin6"){
+        if(whichBin == "bin6"){
             arm2_.PrepareRobot(whichBin);
             pick_n_place_success = PickAndPlace(product_type_pose_, agv_id_, 2, true, trueIdx);
         }
         else{
+            if(whichBin == "bin5") arm2_.PrepareRobot("bin6");
             arm1_.PrepareRobot(whichBin);
             pick_n_place_success =  PickAndPlace(product_type_pose_, agv_id_, 1, false, trueIdx);
         }
     }
     else{
-        if(whichBin == "bin1" || whichBin == "bin2"){
+        if(whichBin == "bin1"){
             arm1_.PrepareRobot(whichBin);
             pick_n_place_success = PickAndPlace(product_type_pose_, agv_id_, 1, true, trueIdx);
         }
         else{
+            if(whichBin == "bin2") arm1_.PrepareRobot("bin1");
             arm2_.PrepareRobot(whichBin);
             pick_n_place_success = PickAndPlace(product_type_pose_, agv_id_, 2, false, trueIdx);
         }
@@ -381,7 +352,7 @@ void AriacOrderManager::offsetPose(std::string type_, geometry_msgs::Pose& pose_
         }
         else if(type_ == "pulley_part"){
             // pose_.position.x += 0.05;
-            pose_.position.z += 0.04;
+            pose_.position.z += 0.05;
         }
         else{
             ROS_WARN(">>>>>> Undefined type. Don't know how to offset");

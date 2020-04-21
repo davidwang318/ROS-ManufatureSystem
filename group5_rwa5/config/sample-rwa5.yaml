@@ -8,9 +8,9 @@ options:
   insert_models_over_bins: true
   spawn_extra_models: false
   model_type_aliases:
-    order_part1: piston_rod_part
-    order_part2: gear_part
-    order_part3: disk_part
+    order_part1: pulley_part #piston_rod_part
+    order_part2: disk_part #gear_part
+    order_part3: gear_part #disk_part
 
 orders:
   order_0:
@@ -19,7 +19,7 @@ orders:
     shipment_count: 1
     products:
       product_0:
-        type: order_part1
+        type: order_part2
         pose:
           xyz: [0.1, -0.2, 0]
           rpy: [0, 0, 0]
@@ -28,24 +28,24 @@ orders:
         pose:
           xyz: [-0.1, -0.2, 0]
           rpy: [0, 0, 0]
-      product_2:
-        type: order_part2 # throw
-        pose:
-          xyz: [0.15, 0.15, 0]
-          rpy: [0, 0, 0]
-      product_3:
-        type: order_part2
-        pose:
-          xyz: [-0.15, 0.15, 0]
-          rpy: [0, 0, 0]
-      product_4:
-        type: order_part2 # throw
-        pose:
-          xyz: [0.0, 0.15, 0]
-          rpy: [0, 0, 0]
+      # product_2:
+      #   type: order_part3 # throw
+      #   pose:
+      #     xyz: [0.15, 0.15, 0]
+      #     rpy: [0, 0, 0]
+      # product_3:
+      #   type: order_part3
+      #   pose:
+      #     xyz: [-0.15, 0.15, 0]
+      #     rpy: [0, 0, 0]
+      # product_4:
+      #   type: order_part3 # throw
+      #   pose:
+      #     xyz: [0.0, 0.15, 0]
+      #     rpy: [0, 0, 0]
   order_0_update_0:
     announcement_condition: wanted_products
-    announcement_condition_value: 4
+    announcement_condition_value: 1
     shipment_count: 1
     products:
       product_0:
@@ -54,28 +54,28 @@ orders:
           xyz: [0.1, -0.2, 0]
           rpy: [0, 0, 0]
       product_1:
-        type: order_part2
+        type: order_part3
         pose:
           xyz: [-0.1, -0.2, 0]
           rpy: [0, 0, 0]
-      product_2:
-        type: order_part1
-        pose:
-          xyz: [0.15, 0.15, 0]
-          rpy: [0, 0, 0]
-      product_3:
-        type: order_part2
-        pose:
-          xyz: [-0.15, 0.15, 0]
-          rpy: [0, 0, 0]
-      product_4:
-        type: order_part3
-        pose:
-          xyz: [0.0, 0.15, 0]
-          rpy: [0, 0, 0]
+      # product_2:
+      #   type: order_part1
+      #   pose:
+      #     xyz: [0.15, 0.15, 0]
+      #     rpy: [0, 0, 0]
+      # product_3:
+      #   type: order_part2
+      #   pose:
+      #     xyz: [-0.15, 0.15, 0]
+      #     rpy: [0, 0, 0]
+      # product_4:
+      #   type: order_part3
+      #   pose:
+      #     xyz: [0.0, 0.15, 0]
+      #     rpy: [0, 0, 0]
 
 models_over_bins:
-  bin1:
+  bin3:
     models:
       gear_part:
         xyz_start: [0.1, 0.1, 0.0]
@@ -91,7 +91,7 @@ models_over_bins:
         rpy: [0, 0, 'pi/4']
         num_models_x: 2
         num_models_y: 3
-  bin3:
+  bin1:
     models:
       pulley_part:
         xyz_start: [0.15, 0.15, 0.0]

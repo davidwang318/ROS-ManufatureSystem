@@ -35,10 +35,11 @@ public:
     void CheckUpdate();
 
     std::vector<osrf_gear::Order> received_orders_;
-    // std::vector<osrf_gear::Order> received_orders_copy;
     std::vector<osrf_gear::Order> order_in_progress_;
     RobotController arm1_;
     RobotController arm2_;
+
+    geometry_msgs::Pose trans_pose; // Position of transition parts
 
     std::map<int, geometry_msgs::Pose> placed_order; // Orders being placed
     std::vector<std::string> received_orders_type;

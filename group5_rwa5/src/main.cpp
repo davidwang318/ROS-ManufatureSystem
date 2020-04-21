@@ -72,7 +72,9 @@ int main(int argc, char **argv) {
     StartCompetition(node);
     ros::spinOnce();
     ros::Duration(1).sleep();
+
     
+    // manager.arm1_.PrepareRobot("end");
     manager.PlanStrategy();
 
 

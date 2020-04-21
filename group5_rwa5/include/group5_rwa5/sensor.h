@@ -29,6 +29,7 @@ public:
     void LogicalCamera4Callback(const osrf_gear::LogicalCameraImage::ConstPtr&);
     void LogicalCamera5Callback(const osrf_gear::LogicalCameraImage::ConstPtr&);
     void LogicalCamera6Callback(const osrf_gear::LogicalCameraImage::ConstPtr&);
+    void LogicalCamera7Callback(const osrf_gear::LogicalCameraImage::ConstPtr&);
     void QualityControl1Callback(const osrf_gear::LogicalCameraImage::ConstPtr&);
     void QualityControl2Callback(const osrf_gear::LogicalCameraImage::ConstPtr&);
 
@@ -52,6 +53,7 @@ private:
     ros::Subscriber camera_4_subscriber_;
     ros::Subscriber camera_5_subscriber_;
     ros::Subscriber camera_6_subscriber_;
+    ros::Subscriber camera_7_subscriber_;
     ros::Subscriber quality_control_1_subscriber_; //-- For subscribing to the quality control sensor topic
     ros::Subscriber quality_control_2_subscriber_;
 

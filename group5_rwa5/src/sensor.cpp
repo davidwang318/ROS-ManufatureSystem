@@ -20,6 +20,8 @@ AriacSensorManager::AriacSensorManager(){
                                                 &AriacSensorManager::LogicalCamera5Callback, this);
     camera_6_subscriber_ = sensor_nh_.subscribe("/ariac/logical_camera_6", 10,
                                                 &AriacSensorManager::LogicalCamera6Callback, this);
+    camera_7_subscriber_ = sensor_nh_.subscribe("/ariac/logical_camera_7", 10,
+                                                &AriacSensorManager::LogicalCamera7Callback, this);
 
     quality_control_1_subscriber_ = sensor_nh_.subscribe("/ariac/quality_control_sensor_1", 10,
                                                 &AriacSensorManager::QualityControl1Callback, this);
@@ -118,6 +120,9 @@ void AriacSensorManager::LogicalCamera6Callback(const osrf_gear::LogicalCameraIm
     current_parts_6_ = *image_msg;
     this->BuildProductFrames(6);
 }
+
+// For Logical Camera 7, do nothing
+void AriacSensorManager::LogicalCamera7Callback(const osrf_gear::LogicalCameraImage::ConstPtr & image_msg){}
 
 void AriacSensorManager::QualityControl1Callback(const osrf_gear::LogicalCameraImage::ConstPtr& image_msg){
     // ROS_INFO_STREAM(">>>>>>> Quality Check Sensor 1: Checking Quality");
@@ -271,32 +276,18 @@ void AriacSensorManager::BuildProductFrames(int camera_id){
 }
 
 
-geometry_msgs::Pose AriacSensorManager::GetPartPose(const std::string& src_frame,
-                                        const std::string& target_frame) {
+geometry_msgs::Pose AriacSensorManager::GetPartPose(const std::string& src_frame, const std::string& target_frame) {
     geometry_msgs::Pose part_pose;
     ROS_INFO_STREAM("Getting part pose...");
-    init_ = true;   
 
-    if (init_) {
-        camera_tf_listener_.waitForTransform(src_frame, target_frame, ros::Time(0),
-                                             ros::Duration(0));
-        camera_tf_listener_.lookupTransform(src_frame, target_frame, ros::Time(0),
-                                            camera_tf_transform_);
+    camera_tf_listener_.waitForTransform(src_frame, target_frame, ros::Time(0),
+                                         ros::Duration(0));
+    camera_tf_listener_.lookupTransform(src_frame, target_frame, ros::Time(0),
+                                        camera_tf_transform_);
 
-        part_pose.position.x = camera_tf_transform_.getOrigin().x();
-        part_pose.position.y = camera_tf_transform_.getOrigin().y();
-        part_pose.position.z = camera_tf_transform_.getOrigin().z();
-
-    } else {
-        ros::spinOnce();
-        ros::Duration(1.0).sleep();
-        this->BuildProductFrames(1);
-        ros::spinOnce();
-        ros::Duration(1.0).sleep();
-        this->BuildProductFrames(2);
-
-        part_pose = this->GetPartPose(src_frame, target_frame);
-    }
+    part_pose.position.x = camera_tf_transform_.getOrigin().x();
+    part_pose.position.y = camera_tf_transform_.getOrigin().y();
+    part_pose.position.z = camera_tf_transform_.getOrigin().z();
 
     return part_pose;
 }
