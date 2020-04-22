@@ -77,7 +77,6 @@ int main(int argc, char **argv) {
     // manager.arm1_.PrepareRobot("end");
     manager.PlanStrategy();
 
-
     manager.SubmitAGV(manager.agv_id);
     ROS_INFO_STREAM("Submitting AGV 1");
 

@@ -70,6 +70,21 @@ bool AriacOrderManager::PickAndPlace(const std::pair<std::string,geometry_msgs::
         failed_pick = pri_arm -> PickPart(part_pose);
     }
 
+    // ---- Flip it, if it is required ---- //
+    ROS_INFO_STREAM("[OrderManager][PickAndPlace]: Flipping Begins here: Pose of the part in the kit tray" << product_type_pose.second);
+
+    // Condition for flipping
+    tf::Quaternion quaternionOfPartPose;
+    double roll, pitch, yaw;
+    tf::Matrix3x3(quaternionOfPartPose).getRPY(roll, pitch, yaw);
+    if (abs(roll)> 3.12 && abs(roll) < 3.16) ROS_WARN_STREAM("[OrderManager][PickAndPlace]: This parts needs to be flipped");
+
+    // Call Flipping Function. Return the position of the arm same as previous after flipping. So doesn't interfere with rest of the code.
+
+    ROS_INFO_STREAM("[OrderManager][PickAndPlace]: Flipping Begins here: Flipping Completed");
+
+    // ----------xxxxxxxxxxxxxxx------------//
+
     // Transmitted to other side by case
     if (transition){
         pri_arm -> PrepareRobot("trans");
