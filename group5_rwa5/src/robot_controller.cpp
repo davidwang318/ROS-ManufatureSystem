@@ -36,9 +36,9 @@ RobotController::RobotController(std::string arm_id): robot_controller_nh_("/ari
         binJointPose4_ = {-1.2, 3.14, -0.7, 2.2, 3.2, 4.7, 0};
         binJointPose5_ = binJointPose4_;
         beltJointPose_ = {1, 0, -1.1, 1.9, 3.9, 4.7, 0};
-        dropJointPose_ = {2.0, 2.3, -0.5, 1.3, 3.9, 4.7, 0};
+        dropJointPose_ = {1.2, 2.3, -0.5, 1.3, 3.9, 4.7, 0};
         transJointPose_ = {0, 4.21, -1.1, 1.9, 3.9, 4.7, 0};
-        endJointPose_ = {2.0, 1.45, -1.1, 1.9, 3.9, 4.7, 0};
+        endJointPose_ = {1.2, 1.45, -1.1, 1.9, 3.9, 4.7, 0};
         // Add 1 special pose to prevent occlusion
         occluJointPose_ = {-1.2, 3.14, -1.1, 2.2, 3.2, 4.7, 0};
 
@@ -89,11 +89,11 @@ RobotController::RobotController(std::string arm_id): robot_controller_nh_("/ari
 RobotController::~RobotController() {}
 
 bool RobotController::Planner() {
-    ROS_INFO_STREAM("Planning started...");
+    // ROS_INFO_STREAM("Planning started...");
     if (robot_move_group_.plan(robot_planner_) ==
         moveit::planning_interface::MoveItErrorCode::SUCCESS) {
         plan_success_ = true;
-        ROS_INFO_STREAM("Planner succeeded!");
+        // ROS_INFO_STREAM("Planner succeeded!");
     } else {
         plan_success_ = false;
         ROS_WARN_STREAM("Planner failed!");
@@ -122,7 +122,7 @@ void RobotController::GoToTarget(const geometry_msgs::Pose& pose) {
         robot_move_group_.move();
         ros::Duration(0.5).sleep();
     }
-    ROS_INFO_STREAM("Point reached...");
+    // ROS_INFO_STREAM("Point reached...");
 }
 
 void RobotController::GoToTarget(std::initializer_list<geometry_msgs::Pose> list) {
@@ -156,6 +156,7 @@ void RobotController::GoToTarget(std::initializer_list<geometry_msgs::Pose> list
 }
 
 void RobotController::PrepareRobot(std::string task) {
+    ROS_INFO("Send Robot To %s Position!", task.c_str());
 
     std::vector<double> jointPose;
     if (task == "bin1") jointPose = binJointPose1_;
@@ -226,7 +227,7 @@ void RobotController::GripperToggle(const bool& state) {
     // ros::Duration(3.0).sleep();
     // if (gripper_client_.call(gripper_service_)) {
     if (gripper_service_.response.success) {
-        ROS_INFO_STREAM("Gripper activated!");
+        // ROS_INFO_STREAM("Gripper activated!");
     } else {
         ROS_WARN_STREAM("Gripper activation failed!");
     }
@@ -240,7 +241,7 @@ void RobotController::GripperToggle(const bool& state) {
 //
 //   ROS_WARN_STREAM("Dropping the part number: " << counter_);
 //
-//   // ROS_INFO_STREAM("Moving to end of conveyor...");
+  // ROS_INFO_STREAM("Moving to end of conveyor...");
 //   // robot_move_group_.setJointValueTarget(part_pose);
 //   // this->execute();
 //   // ros::Duration(1.0).sleep();
@@ -294,20 +295,20 @@ bool RobotController::DropPart(geometry_msgs::Pose part_pose) {
     drop_flag_ = true;
 
     ros::spinOnce();
-    ROS_INFO_STREAM("Placing phase activated...");
+    // ROS_INFO_STREAM("Placing phase activated...");
 
     if (gripper_state_){//--while the part is still attached to the gripper
         //--move the robot to the end of the rail
-         ROS_INFO_STREAM("Moving towards AGV...");
+         // ROS_INFO_STREAM("Moving towards AGV...");
 
          PrepareRobot("end");
          ros::Duration(0.5).sleep();
 
          part_pose.position.z += 0.1;
-         ROS_INFO_STREAM("Go to the correct position...");
+         // ROS_INFO_STREAM("Go to the correct position...");
          this->GoToTarget(part_pose);
 
-         ROS_INFO_STREAM("Releasing the gripper...");
+         // ROS_INFO_STREAM("Releasing the gripper...");
          this->GripperToggle(false);
          
          part_pose.position.z += 0.2;
@@ -331,7 +332,7 @@ bool RobotController::PickPart(geometry_msgs::Pose& part_pose) {
     //ROS_WARN_STREAM("Picking the part...");
     int pickCount = 0;
 
-    ROS_INFO_STREAM("Moving to part...");
+    // ROS_INFO_STREAM("Moving to part...");
     part_pose.position.z = part_pose.position.z + offset_;
     auto temp_pose_1 = part_pose;
     temp_pose_1.position.z += 0.3;
@@ -339,20 +340,20 @@ bool RobotController::PickPart(geometry_msgs::Pose& part_pose) {
     this->GoToTarget({temp_pose_1, part_pose});
     // GoToTarget(part_pose);
 
-    ROS_INFO_STREAM("Actuating the gripper..." << part_pose.position.z);
+    // ROS_INFO_STREAM("Actuating the gripper..." << part_pose.position.z);
     this->GripperToggle(true);
     ros::spinOnce();
     ros::Duration(0.5).sleep();
     while (!gripper_state_) {
         pickCount++;
-        ROS_INFO_STREAM(" Keep Actuating the gripper...");
+        // ROS_INFO_STREAM(" Keep Actuating the gripper...");
         this->GripperToggle(true);
         ros::spinOnce();
         ros::Duration(0.5).sleep();
         if(pickCount >= 10) return false;
     }
 
-    ROS_INFO_STREAM("Going to waypoint...");
+    // ROS_INFO_STREAM("Going to waypoint...");
     this->GoToTarget(temp_pose_1);
     return gripper_state_;
 }

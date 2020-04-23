@@ -13,8 +13,6 @@ AriacOrderManager::AriacOrderManager(): arm1_{"arm1"}, arm2_{"arm2"}
     order_subscriber_ = order_manager_nh_.subscribe(
             "/ariac/orders", 10,
             &AriacOrderManager::OrderCallback, this);
-    current_order = 0;
-    place_time = 0;
     agv_id = 0;
     trans_pose.position.x = 0.3;
     trans_pose.position.y = 0;
@@ -85,7 +83,9 @@ bool AriacOrderManager::PickAndPlace(const std::pair<std::string,geometry_msgs::
         sec_arm -> PrepareRobot("trans");
         trans_pose = tmp;
 
-        whichArm = 2; std::swap(pri_arm, sec_arm);
+        if (whichArm == 1) whichArm = 2;
+        else whichArm = 1; 
+        std::swap(pri_arm, sec_arm);
 
         product_frame[15] = '7';
         part_pose = camera_.GetPartPose("/world",product_frame);
@@ -126,61 +126,61 @@ bool AriacOrderManager::PickAndPlace(const std::pair<std::string,geometry_msgs::
 
 // Function to pick a part from the belt
 void AriacOrderManager::PickFromBelt() {
-    state_ = "belt";
+
+    // Initialize some paremeters
     arm1_.PrepareRobot("belt");
+    int productIdx_ = 0;
+    std::string whichBin;
+    state_ = "belt";
+
+    // Start waiting the target parts
     ROS_WARN(">>>>>> Waiting parts...");
     bool hold = true;
-    int orderIdx_ = 0, shipmentIdx_ = 0, productIdx_ = 0;
     while(hold){
         ros::spinOnce();
         product_frame_list_ = camera_.get_product_frame_list(0);
 
         if(!product_frame_list_.empty()){
-            orderIdx_ = 0;
-            shipmentIdx_ = 0;
+            std::cout << "entering finding stage" << std::endl;
             productIdx_ = 0;
+            auto products = shipment_in_progress.products;
 
-            for (const auto &order : received_orders_){
-                auto order_id = order.order_id;
-                auto shipments = order.shipments;
-                ROS_WARN(">>>>>> Start scanning Order ID: %s", order_id.c_str());
+            for (const auto &product: products){
 
-                for (const auto &shipment : shipments){
-                    auto shipment_type = shipment.shipment_type;
-                    auto agv = shipment.agv_id.back();//--this returns a char
-                    agv_id_ = (shipment.agv_id == "any") ? 1 : agv - '0';
-                    auto products = shipment.products;
-                    ROS_INFO_STREAM("Order ID: " << order_id);
-                    ROS_INFO_STREAM("Shipment Type: " << shipment_type);
-                    ROS_INFO_STREAM("AGV ID: " << agv_id_);
-
-                    for (const auto &product: products){
-                        if (product_frame_list_.count(product.type) == 0) {
-                            productIdx_++; continue;
-                        }
-                        ROS_WARN(">>>>>> FOUND !!");
-                        product_type_pose_.first = product.type;
-                        ROS_INFO_STREAM("Product type: " << product_type_pose_.first);
-                        product_type_pose_.second = product.pose;
-                        hold = false;
-                        break;    
-                    }
-                    if(!hold) break;
-                    else shipmentIdx_++;
+                if (product_frame_list_.count(product.type) == 0) {
+                    productIdx_++; continue;
                 }
-                if(!hold) break;
-                else orderIdx_++;
+
+                ROS_WARN(">>>>>> FOUND !!");
+                ROS_INFO_STREAM("Product type: " << product_type_pose_.first);
+                product_type_pose_.first = product.type;
+                product_type_pose_.second = product.pose;
+                hold = false;
+                break;    
             }
         }
     }
 
-    ROS_WARN(">>>>>> Executing order...");
-    bool pick_n_place_success{false};
-    std::list<std::pair<std::string,geometry_msgs::Pose>> failed_parts;
-    pick_n_place_success =  PickAndPlace(product_type_pose_, agv_id_, 1, true, productIdx_);
+    // Find the order of the part ready to pick in the current shipment
+    int trueIdx = 0;
+    for(int i = 0; i < original_shipment.products.size(); i++){
+        auto org_product = original_shipment.products[i];
+        if(product_type_pose_.first == org_product.type && product_type_pose_.second.position.x == org_product.pose.position.x && 
+            product_type_pose_.second.position.y == org_product.pose.position.y && product_type_pose_.second.position.z == org_product.pose.position.z){
+            trueIdx = i;
+        }
+    }
+    std::cout << "==============" << std::endl;
+    std::cout << "Product Index: " << trueIdx << std::endl;
 
+    // Call the PickAndPlace function to pick parts
+    bool pick_n_place_success{false};
+    if (agv_id == 1) pick_n_place_success =  PickAndPlace(product_type_pose_, agv_id, 1, false, productIdx_);
+    else pick_n_place_success = PickAndPlace(product_type_pose_, agv_id, 1, true, productIdx_);
+
+    // Faulty Part Condition
     if (pick_n_place_success){
-        UpdateOrder(orderIdx_, shipmentIdx_, productIdx_);
+        UpdateOrder(productIdx_);
     }
     else{
         PickFromBelt();
@@ -193,95 +193,91 @@ void AriacOrderManager::PickFromBelt() {
 void AriacOrderManager::PickFromBin() {
     ros::spinOnce();
     ROS_WARN(">>>>>> Searching bins...");
+
+    // Initialize some paremeters
     state_ = "bin";
-    int shipmentIdx_ = 0, productIdx_ = 0;
+    int productIdx_ = 0;
     bool find = false;
     std::string whichBin;
+
+    // Start searching for the part from bin1 to bin 6
     for(int i = 1; i < 7; i++){
         product_frame_list_ = camera_.get_product_frame_list(i);
 
         if(!product_frame_list_.empty()){
-            shipmentIdx_ = 0;
             productIdx_ = 0;
-            auto order = order_in_progress_[current_order];  // Using a copy of recieved_orders_ 
-            auto order_id = order.order_id;
-            auto shipments = order.shipments;
-            ROS_WARN("[PickFromBin]: Start scanning Order ID: %s", order_id.c_str());
+            auto products = shipment_in_progress.products;
+            ROS_INFO_STREAM("[PickFromBin]: Order ID: " << order_id);
+            // ROS_INFO_STREAM("[PickFromBin]: Shipment Type: " << shipment_in_progress.type);
+            ROS_INFO_STREAM("[PickFromBin]: AGV ID: " << agv_id);
 
-            for (const auto &shipment : shipments){
-                auto shipment_type = shipment.shipment_type;
-                auto agv = shipment.agv_id.back();//--this returns a char
-                agv_id_ = (shipment.agv_id == "any") ? 1 : agv - '0';
-                auto products = shipment.products;
-                ROS_INFO_STREAM("[PickFromBin]: Order ID: " << order_id);
-                ROS_INFO_STREAM("[PickFromBin]: Shipment Type: " << shipment_type);
-                ROS_INFO_STREAM("[PickFromBin]: AGV ID: " << agv_id_);
-
-                for (const auto &product: products){
-                    if (product_frame_list_.count(product.type) == 0) {
-                        productIdx_++; continue;
-                    }
-                    ROS_WARN("[PickFromBin]: FOUND !!");
-                    product_type_pose_.first = product.type;
-                    ROS_INFO_STREAM("Product type: " << product_type_pose_.first);
-                    product_type_pose_.second = product.pose;
-                    find = true;
-                    whichBin = "bin" + std::to_string(i);
-                    break;    
+            for (const auto &product: products){
+                if (product_frame_list_.count(product.type) == 0) {
+                    productIdx_++; continue;
                 }
-                if(find) break;
-                else shipmentIdx_++;
+                ROS_WARN("[PickFromBin]: FOUND !!");
+                product_type_pose_.first = product.type;
+                ROS_INFO_STREAM("Product type: " << product_type_pose_.first);
+                product_type_pose_.second = product.pose;
+                find = true;
+                whichBin = "bin" + std::to_string(i);
+                break;    
             }
-            if(find) break;
         }
+        // Break th searching process to pick    
         if(find) break;
         else ROS_INFO("Not found in Bin %d", i);
     }
-
     if(!find) return;
 
-
+    // Find the order of the part ready to pick in the current shipment
     int trueIdx = 0;
-    for(int i = 0; i < received_orders_[current_order].shipments[0].products.size(); i++){
-        auto org_product = received_orders_[current_order].shipments[0].products[i];
+    for(int i = 0; i < original_shipment.products.size(); i++){
+        auto org_product = original_shipment.products[i];
         if(product_type_pose_.first == org_product.type && product_type_pose_.second.position.x == org_product.pose.position.x && 
             product_type_pose_.second.position.y == org_product.pose.position.y && product_type_pose_.second.position.z == org_product.pose.position.z){
             trueIdx = i;
         }
     }
-
     std::cout << "==============" << std::endl;
     std::cout << "Product Index: " << trueIdx << std::endl;
-    std::cout << whichBin << std::endl;
+    std::cout << "WhichBin: " << whichBin << std::endl;
+
+    // Call the pick function
     bool pick_n_place_success{false};
-    if (agv_id_ == 1){
+    if (agv_id == 1){
         if(whichBin == "bin6"){
             arm2_.PrepareRobot(whichBin);
-            pick_n_place_success = PickAndPlace(product_type_pose_, agv_id_, 2, true, trueIdx);
+            std::cout << "case1" << std::endl;
+            pick_n_place_success = PickAndPlace(product_type_pose_, agv_id, 2, true, trueIdx);
         }
         else{
             if(whichBin == "bin5") arm2_.PrepareRobot("bin6");
             arm1_.PrepareRobot(whichBin);
-            pick_n_place_success =  PickAndPlace(product_type_pose_, agv_id_, 1, false, trueIdx);
+            std::cout << "case2" << std::endl;
+            pick_n_place_success =  PickAndPlace(product_type_pose_, agv_id, 1, false, trueIdx);
         }
     }
     else{
         if(whichBin == "bin1"){
             arm1_.PrepareRobot(whichBin);
-            pick_n_place_success = PickAndPlace(product_type_pose_, agv_id_, 1, true, trueIdx);
+            std::cout << "case3" << std::endl;
+            pick_n_place_success = PickAndPlace(product_type_pose_, agv_id, 1, true, trueIdx);
         }
         else{
             if(whichBin == "bin2") arm1_.PrepareRobot("bin1");
             arm2_.PrepareRobot(whichBin);
-            pick_n_place_success = PickAndPlace(product_type_pose_, agv_id_, 2, false, trueIdx);
+            std::cout << "case4" << std::endl;
+            pick_n_place_success = PickAndPlace(product_type_pose_, agv_id, 2, false, trueIdx);
         }
     }
 
 
     if (pick_n_place_success) {
-        UpdateOrder(current_order, shipmentIdx_, productIdx_);
+        UpdateOrder(productIdx_);
     }
-    else PickFromBin();
+    else PickFromBin(); // Faulty parts
+
     return;
 }
 
@@ -331,6 +327,10 @@ void AriacOrderManager::offsetPose(std::string type_, geometry_msgs::Pose& pose_
             pose_.position.y -= 0.35;
             pose_.position.z += 0.0025;
         }
+        else if(type_ == "disk_part"){
+            pose_.position.y -= 0.325;
+            pose_.position.z += 0.01;
+        }
         else{
             ROS_WARN(">>>>>> Undefined type. Don't know how to offset");
         }
@@ -363,178 +363,273 @@ void AriacOrderManager::offsetPose(std::string type_, geometry_msgs::Pose& pose_
 }
 
 void AriacOrderManager::PrintOrder(){
+
+    int orders_size = received_orders_.size();
+    int orders_count = 0;
+
+    ROS_INFO("\n\n==========PrintOrders==========");
+    ROS_INFO("Order total count: %d", orders_size);
+
     for (const auto &order : received_orders_){
-                auto order_id = order.order_id;
-                auto shipments = order.shipments;
-                ROS_INFO("\n\n==========PrintOrder==========");
+        
+        auto order_id = order.order_id;
+        auto shipments = order.shipments;
+        
+        int shipments_size = shipments.size();
+        int shipments_count = 0;
+
+        ROS_INFO("\n\n==========Print %d Order Detail==========", orders_count++);
+        ROS_INFO("-Order ID: %s",  order_id.c_str());
+        ROS_INFO("-Shipment total count: %d", shipments_size);
+        
         for (const auto &shipment : shipments){
             auto shipment_type = shipment.shipment_type;
-            auto agv = shipment.agv_id.back();
-            agv_id_ = (shipment.agv_id == "any") ? 1 : agv - '0';
+            auto agv = shipment.agv_id.back(); agv_id_ = (shipment.agv_id == "any") ? 1 : agv - '0';
             auto products = shipment.products;
-            ROS_INFO("Order ID: %s",  order_id.c_str());
-            ROS_INFO("Shipment Type: %s", shipment_type.c_str());
-            ROS_INFO("AGV ID: %d", agv_id_);
+
+            ROS_INFO("--Shipment count: %d", shipments_count++);
+            ROS_INFO("--Shipment Type: %s", shipment_type.c_str());
+            ROS_INFO("--AGV ID: %d", agv_id_);
+
             for (const auto &product: products){
-                ROS_INFO_STREAM("Product Type: " << product.type);
+                ROS_INFO_STREAM("---Product Type: " << product.type);
             }
             ROS_INFO("---------------------------");
         }
     }
+    ROS_INFO("\n\n==========PrintOrdersEnd==========");
     return;
 }
 
-void AriacOrderManager::UpdateOrder(int orderIdx, int shipmentIdx, int productIdx){
+void AriacOrderManager::PrintShipment(){
+    ROS_INFO("\n\n==========PrintCurrentShipment==========");
+    ROS_INFO("-Order ID: %s",  order_id.c_str());
+    for (const auto &product: shipment_in_progress.products){
+        ROS_INFO_STREAM("--Product Type: " << product.type);
+    }
+    return;
+}
+
+void AriacOrderManager::UpdateOrder(int productIdx){
     // Erase the specific product in the order
-    order_in_progress_[orderIdx].shipments[shipmentIdx].products.erase(
-        order_in_progress_[orderIdx].shipments[shipmentIdx].products.begin()+productIdx
-        );
-
-    PrintOrder();
+    shipment_in_progress.products.erase(shipment_in_progress.products.begin()+productIdx);
+    PrintShipment();
     return;
 }
 
-void AriacOrderManager::PlanStrategy(){
+void AriacOrderManager::PlanStrategyOrder(){
     ROS_INFO_STREAM("[AriacOrderManager]:[PlanStrategy]: Called");
     ros::spinOnce();
-    received_orders_type.clear();
-    received_orders_pose.clear();
-    int fromBelt = 0, fromBin = 0;
+    // Print all the order
+    this -> PrintOrder();
 
-    int pulley = 0, gasket = 0, piston = 0, gear = 0, disk = 0;
-    for (int i = 1; i < 7; i++){
-        product_frame_list_ = camera_.get_product_frame_list(i);
-        pulley += product_frame_list_["pulley_part"].size();
-        gasket += product_frame_list_["gasket_part"].size();
-        piston += product_frame_list_["piston_rod_part"].size();
-        gear += product_frame_list_["gear_part"].size();
-        disk += product_frame_list_["disk_part"].size();
+    // Get the order_id
+    for (int i = 0; i < received_orders_.size(); i++){
+        auto order_id_tmp = received_orders_[i].order_id;
+        // Make sure its not the updated order
+        if (order_id_tmp.size() == 7) PlanStrategyShipment(received_orders_[i]);
     }
-    ROS_WARN("[AriacOrderManager]:[PlanStrategy]: Getting Order Details");
-    int order_pulley = 0, order_gasket = 0, order_piston = 0, order_gear = 0, order_disk = 0;
+    return;
+}
 
-    auto order = received_orders_[current_order];
-    auto shipments = order.shipments;
-    for (const auto &shipment : shipments){
-        auto products = shipment.products;
-        for (const auto &product: products){
-            received_orders_type.push_back(product.type);
-            received_orders_pose.push_back(product.pose);
-            std::cout << product.type << std::endl;
-            std::cout << product.pose.position.x << " " << product.pose.position.y << " " << product.pose.position.z << std::endl;
-            if(product.type == "pulley_part") {order_pulley++; continue;}
-            else if(product.type == "gasket_part") {order_gasket++; continue;}
-            else if(product.type == "piston_rod_part") {order_piston++; continue;}
-            else if(product.type == "gear_part") {order_gear++; continue;}
-            else if(product.type == "disk_part") {order_disk++; continue;}
-            else ROS_WARN("!!! ERROR, Missing part type !!!");
+void AriacOrderManager::PlanStrategyShipment(osrf_gear::Order order){
+
+    // Initialize the order id
+    order_id = order.order_id.c_str();
+
+    for (int i = 0; i < order.shipments.size(); i++){
+        // Clear the helper
+        placed_order.clear();
+        
+        // Initialize the shipment parameters
+        original_shipment = order.shipments[i];
+        shipment_in_progress = original_shipment;
+        shipment_num = i;
+        agv_id = (original_shipment.agv_id == "any") ? 1 : original_shipment.agv_id.back() - '0';
+        int fromBin = 0, fromBelt = 0;
+
+        do{
+            // Check update
+            ros::spinOnce();
+            auto tmp = CheckUpdate();
+            std::cout << "test" <<std::endl;
+
+            // Initialize the counter of parts on bins
+            int pulley = 0, gasket = 0, piston = 0, gear = 0, disk = 0;
+            for (int i = 1; i < 7; i++){
+                product_frame_list_ = camera_.get_product_frame_list(i);
+                pulley += product_frame_list_["pulley_part"].size();
+                gasket += product_frame_list_["gasket_part"].size();
+                piston += product_frame_list_["piston_rod_part"].size();
+                gear += product_frame_list_["gear_part"].size();
+                disk += product_frame_list_["disk_part"].size();
+            }
+
+            // Initialize the counter of parts in the shipment
+            int order_pulley = 0, order_gasket = 0, order_piston = 0, order_gear = 0, order_disk = 0;
+            received_shipment_type.clear();
+            received_shipment_pose.clear();
+            for(const auto &product : shipment_in_progress.products){
+                // Memorize the type and pose for checkUpdate
+                received_shipment_type.push_back(product.type);
+                received_shipment_pose.push_back(product.pose);
+                // Add on the counter
+                if(product.type == "pulley_part") {order_pulley++; continue;}
+                else if(product.type == "gasket_part") {order_gasket++; continue;}
+                else if(product.type == "piston_rod_part") {order_piston++; continue;}
+                else if(product.type == "gear_part") {order_gear++; continue;}
+                else if(product.type == "disk_part") {order_disk++; continue;}
+                else ROS_WARN("!!! ERROR, Missing part type !!!");
+            }
+
+            // Calculate the parts needed to be picked from bins and belts
+            fromBin = std::min(pulley, order_pulley) + std::min(gasket, order_gasket)
+                    + std::min(piston, order_piston) + std::min(gear, order_gear) + std::min(disk, order_disk);
+            fromBelt = order_pulley + order_gasket + order_piston + order_gear + order_disk - fromBin;
+
+            // Printing
+            ROS_INFO("\n\n==========Print Order Information==========");
+            ROS_INFO("Order id = %s", order_id.c_str());
+            ROS_INFO("Shipment number = %d", shipment_num);
+            ROS_INFO("Agv_id = %d", agv_id);
+
+            // ROS_INFO("\n\n==========Print Parts On Bins==========");
+            // ROS_INFO("pulley_part = %d", pulley);
+            // ROS_INFO("gasket_part = %d", gasket);
+            // ROS_INFO("piston_rod_part = %d", piston);
+            // ROS_INFO("gear_part = %d", gear);
+            // ROS_INFO("disk_part = %d", disk);
+
+            // ROS_INFO("\n\n==========Print Parts In Orders==========");
+            // ROS_INFO("pulley_part = %d", order_pulley);
+            // ROS_INFO("gasket_part = %d", order_gasket);
+            // ROS_INFO("piston_rod_part = %d", order_piston);
+            // ROS_INFO("gear_part = %d", order_gear);
+            // ROS_INFO("disk_part = %d", order_disk);
+
+            ROS_INFO("\n\n==========Print Strategy==========");
+            ROS_INFO("Pick %d Parts From Belt", fromBelt);
+            ROS_INFO("Pick %d Parts From Bins", fromBin);
+
+            // Execute the strategy
+            if(fromBelt > 0) {PickFromBelt(); fromBelt--;}
+            else if(fromBin > 0) {PickFromBin(); fromBin--;}
+            std::cout << fromBin << fromBelt << order_id.size() << std::endl; 
+
+            // Final Check
+            if(order_id.size() == 7 && fromBelt == 0 && fromBin == 0){
+                ros::Duration(5.5).sleep();
+                ros::spinOnce();
+                if(CheckUpdate()) fromBin = 1; // Force to run the loop
+            }
+        }
+        while(fromBelt > 0 || fromBin > 0);
+
+        // Submit the agv
+        SubmitAGV(agv_id);
+    } 
+
+    return;
+}
+
+bool AriacOrderManager::CheckUpdate(){
+    std::cout << "~~~~~~~~~Checking Update~~~~~~~~~~" << std::endl;
+    // Do nothing if its an updated order
+    if (order_id.size() > 7) return false;
+
+    // Initialize the parameters
+    int update_order_idx = -1;
+    osrf_gear::Shipment update_shipment;
+
+    std::cout << "test2" << std::endl;
+
+    // Search the order
+    std::string compare_id = order_id + "_update_0";
+    for (int i = 0; i < received_orders_.size(); i++){
+        std::string target_id = received_orders_[i].order_id.c_str();
+        if(target_id == compare_id){
+            update_order_idx = i;
+            break;
         }
     }
 
-    fromBin = std::min(pulley, order_pulley) + std::min(gasket, order_gasket)
-            + std::min(piston, order_piston) + std::min(gear, order_gear) + std::min(disk, order_disk);
-    fromBelt = order_pulley + order_gasket + order_piston + order_gear + order_disk - fromBin;
+    // Store the updated order if there is one
+    if(update_order_idx == -1) return false;
+    else{
+        update_shipment = received_orders_[update_order_idx].shipments[shipment_num];
+    }
+    std::cout << "Find new order" << std::endl;
 
-    ROS_INFO("\n\n==========Print Parts On Bins==========");
-    ROS_INFO("pulley_part = %d", pulley);
-    ROS_INFO("gasket_part = %d", gasket);
-    ROS_INFO("piston_rod_part = %d", piston);
-    ROS_INFO("gear_part = %d", gear);
-    ROS_INFO("disk_part = %d", disk);
-
-    ROS_INFO("\n\n==========Print Parts In Orders==========");
-    ROS_INFO("pulley_part = %d", order_pulley);
-    ROS_INFO("gasket_part = %d", order_gasket);
-    ROS_INFO("piston_rod_part = %d", order_piston);
-    ROS_INFO("gear_part = %d", order_gear);
-    ROS_INFO("disk_part = %d", order_disk);
-
-    ROS_INFO("\n\n==========Print Strategy==========");
-    ROS_INFO("Pick %d Parts From Belt", fromBelt);
-    ROS_INFO("Pick %d Parts From Bins", fromBin);
-
-    order_in_progress_ = received_orders_; // Let PickFromBin() and PickFromBelt() work on copy of recieved_orders_;
-    while(fromBelt-- > 0) PickFromBelt();
-    while(fromBin-- > 0) PickFromBin();
-
-    // todo: Now think about the updated order what we have to change - remove / move / add
-    ROS_INFO_STREAM("[AriacOrderManager::PlanStrategy] Strategy One executed");
-    if(received_orders_.size()-1 > current_order){ CheckUpdate();}
-
-    return;
-}
-
-void AriacOrderManager::CheckUpdate(){
-    std::vector<std::vector<int>> eraseOrderIdx;
+    // Compare the update shipment with the current shipment
+    std::map<int, int> correctIdxMap;
     std::vector<int> correctProductIdx;
-    current_order ++;
+    for (int updateIdx = 0; updateIdx < update_shipment.products.size(); updateIdx++){
+        // Get the part and pose in the update shipment
+        auto update_product = update_shipment.products[updateIdx];
+        auto update_type = update_product.type;
+        auto update_pose = update_product.pose;
 
-    auto order = received_orders_[current_order];
-    int agv_id_ = 0;
-    auto shipments = order.shipments;
-
-    for (int shipmentIdx_ = 0; shipmentIdx_ < shipments.size(); shipmentIdx_++){
-
-        auto shipment = shipments[shipmentIdx_];
-        agv_id_ = (shipment.agv_id == "any") ? 1 : shipment.agv_id.back() - '0';
-        auto products = shipment.products;
-
-        for (int productIdx_ = 0; productIdx_ < products.size(); productIdx_++){
-
-            auto product = products[productIdx_];
-            auto type = product.type;
-            auto pose = product.pose;
-
-            for (int copyIdx = 0; copyIdx < received_orders_type.size(); copyIdx++){
-                auto copy_type = received_orders_type[copyIdx];
-                auto copy_pose = received_orders_pose[copyIdx];
-                if(type == copy_type && pose.position.x == copy_pose.position.x && pose.position.y == copy_pose.position.y && pose.position.z == copy_pose.position.z){
-                    std::cout << productIdx_ << ' ' << copyIdx << std::endl;
-                    std::cout << type << " " << copy_type << std::endl;
-                    std::cout << pose.position.x << ' ' << pose.position.y << ' ' << pose.position.z << std::endl;
-                    std::cout << copy_pose.position.x << ' ' << copy_pose.position.y << ' ' << copy_pose.position.z << std::endl;
-                    eraseOrderIdx.push_back({current_order, shipmentIdx_, productIdx_});
-                    correctProductIdx.push_back(copyIdx);
-                    break;
-                }
+        for (int originalIdx = 0; originalIdx < received_shipment_type.size(); originalIdx++){
+            // Search the orignal shipment
+            auto original_type = received_shipment_type[originalIdx];
+            auto original_pose = received_shipment_pose[originalIdx];
+            // Find the same pruduct in both shipments
+            if(update_type == original_type && update_pose.position.x == original_pose.position.x && 
+               update_pose.position.y == original_pose.position.y && update_pose.position.z == original_pose.position.z){
+                // Save the index for further process
+                correctProductIdx.push_back(originalIdx);
+                correctIdxMap[originalIdx] = updateIdx;
+                break;
             }
         }
     }
 
-    for (int i = 0; i < placed_order.size(); i++){
-        if (std::find(correctProductIdx.begin(), correctProductIdx.end(), i) != correctProductIdx.end()){
+    // Find the wrong products being placed and removed it
+    std::vector<int> eraseShipmentIdx;
+    for (auto m : placed_order){
+        // If its placed and at its correct postion
+        auto it = std::find(correctProductIdx.begin(), correctProductIdx.end(), m.first);
+        if (it != correctProductIdx.end()){
+            eraseShipmentIdx.push_back(correctIdxMap[*it]);
             continue;
         }
-        if (agv_id_ == 1){
-            auto tmp = arm1_.PickPart(placed_order[i]);
-            arm1_.PrepareRobot("drop");
-            arm1_.GripperToggle(false);
-            arm1_.PrepareRobot("end");
-        }
-        else {
-            auto tmp = arm2_.PickPart(placed_order[i]);
-            arm2_.PrepareRobot("drop");
-            arm2_.GripperToggle(false);
-            arm2_.PrepareRobot("end");
+        // If its place but not at its correct position
+        else{
+            if (agv_id == 1){
+                auto tmp = arm1_.PickPart(m.second);
+                arm1_.PrepareRobot("drop");
+                arm1_.GripperToggle(false);
+                arm1_.PrepareRobot("end");
+            }
+            else {
+                auto tmp = arm2_.PickPart(m.second);
+                arm2_.PrepareRobot("drop");
+                arm2_.GripperToggle(false);
+                arm2_.PrepareRobot("end");
+            }
         }
     }
 
+    // Erase the product already placed in the updated order
+    std::sort(eraseShipmentIdx.begin(), eraseShipmentIdx.end());
     int tmpCount = 0; // offset the index
-    for (const auto &eraseIdx : eraseOrderIdx){
-        received_orders_[eraseIdx[0]].shipments[eraseIdx[1]].products.erase(
-            received_orders_[eraseIdx[0]].shipments[eraseIdx[1]].products.begin()+eraseIdx[2]-tmpCount);
+    for (const auto &eraseIdx : eraseShipmentIdx){
+        update_shipment.products.erase(update_shipment.products.begin()+eraseIdx-tmpCount);
         tmpCount++;
     }
 
-    std::cout << "-------------------\n";
-    for (auto tmp : received_orders_[current_order].shipments[0].products){
-        std::cout << tmp.type << std::endl;
-        std::cout << tmp.pose.position.x << " " << tmp.pose.position.y << " " << tmp.pose.position.z << std::endl;
-    }
+    // Update the shipment information
+    original_shipment = update_shipment; // doesn't matter for only 1 update
+    shipment_in_progress = update_shipment;
+    order_id = compare_id;
+    agv_id = (update_shipment.agv_id == "any") ? 1 : update_shipment.agv_id.back() - '0';
 
-    agv_id = agv_id_;
-
-    PlanStrategy();
+    ROS_WARN(">>>>>> Update Order Comes in <<<<<<");
+    ROS_INFO("==========Print Shipment Information==========");
+    ROS_INFO("New order_id = %s", order_id.c_str());
+    ROS_INFO("New agv_id = %d", agv_id);
+    ROS_INFO("Update Complete");
+    return true;
 }
 
 

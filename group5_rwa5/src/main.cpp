@@ -74,12 +74,15 @@ int main(int argc, char **argv) {
     ros::Duration(1).sleep();
 
     
+    // std::cout << "printing orders:" << std::endl;
+    // manager.PrintOrder();
+    // std::cout << "finish" << std::endl;
     // manager.arm1_.PrepareRobot("end");
-    manager.PlanStrategy();
+    manager.PlanStrategyOrder();
 
 
-    manager.SubmitAGV(manager.agv_id);
-    ROS_INFO_STREAM("Submitting AGV 1");
+    // /manager.SubmitAGV(manager.agv_id);
+    // ROS_INFO_STREAM("Submitting AGV 1");
 
     //manager.ExecuteOrder();
     // EndCompetition(node);

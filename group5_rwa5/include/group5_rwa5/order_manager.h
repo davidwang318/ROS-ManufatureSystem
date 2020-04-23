@@ -30,23 +30,29 @@ public:
     void offsetPose(std::string type_, geometry_msgs::Pose& pose_);
 
     void PrintOrder();
-    void UpdateOrder(int orderIdx, int shipmentIdx, int productIdx);
-    void PlanStrategy();
-    void CheckUpdate();
+    void PrintShipment();
+    void UpdateOrder(int productIdx);
+    void PlanStrategyOrder();
+    void PlanStrategyShipment(osrf_gear::Order order);
+    bool CheckUpdate();
 
-    std::vector<osrf_gear::Order> received_orders_;
-    std::vector<osrf_gear::Order> order_in_progress_;
     RobotController arm1_;
     RobotController arm2_;
 
     geometry_msgs::Pose trans_pose; // Position of transition parts
 
-    std::map<int, geometry_msgs::Pose> placed_order; // Orders being placed
-    std::vector<std::string> received_orders_type;
-    std::vector<geometry_msgs::Pose> received_orders_pose;
-    int current_order;
-    int place_time;
+    // Order attributes:
+    std::vector<osrf_gear::Order> received_orders_;
+    osrf_gear::Shipment original_shipment;
+    osrf_gear::Shipment shipment_in_progress;
+    
+    std::string order_id;
+    int shipment_num;
     int agv_id;
+
+    std::map<int, geometry_msgs::Pose> placed_order; // Orders being placed
+    std::vector<std::string> received_shipment_type;
+    std::vector<geometry_msgs::Pose> received_shipment_pose;
 
 
 private:
@@ -58,7 +64,6 @@ private:
     std::string object;
     std::map<std::string, std::vector<std::string>> product_frame_list_;
     osrf_gear::Order order_;
-
     std::string state_;
 
     int agv_id_ = 0;

@@ -64,8 +64,8 @@ void AriacSensorManager::LogicalCamera0Callback(const osrf_gear::LogicalCameraIm
         // ROS_INFO_STREAM("Logical Camera 1 does not see anything");
     }
     else{
-        ROS_INFO_STREAM_THROTTLE(10, "Logical camera 1: '" << image_msg->models.size() << "' objects.");   
-        current_parts_1_ = *image_msg;
+        ROS_INFO_STREAM_THROTTLE(10, "Logical camera 0: '" << image_msg->models.size() << "' objects.");   
+        current_parts_0_ = *image_msg;
         this->BuildProductFrames(0);
     }
     return;
@@ -200,7 +200,6 @@ void AriacSensorManager::BuildProductFrames(int camera_id){
         cam_2_ = true;
     }
     else if (camera_id == 3) {
-        if (cam_3_) return;
         bool init = false;
         camera3_frame_counter_ = 1;
         for (auto& msg : current_parts_3_.models) {
@@ -218,7 +217,6 @@ void AriacSensorManager::BuildProductFrames(int camera_id){
         cam_3_ = true;
     }
     else if (camera_id == 4) {
-        if (cam_4_) return;
         bool init = false;
         camera4_frame_counter_ = 1;
         for (auto& msg : current_parts_4_.models) {

@@ -28,11 +28,11 @@ orders:
         pose:
           xyz: [-0.1, -0.2, 0]
           rpy: [0, 0, 0]
-      # product_2:
-      #   type: order_part3 # throw
-      #   pose:
-      #     xyz: [0.15, 0.15, 0]
-      #     rpy: [0, 0, 0]
+      product_2:
+        type: order_part3 # throw
+        pose:
+          xyz: [0.15, 0.15, 0]
+          rpy: [0, 0, 0]
       # product_3:
       #   type: order_part3
       #   pose:
@@ -58,11 +58,11 @@ orders:
         pose:
           xyz: [-0.1, -0.2, 0]
           rpy: [0, 0, 0]
-      # product_2:
-      #   type: order_part1
-      #   pose:
-      #     xyz: [0.15, 0.15, 0]
-      #     rpy: [0, 0, 0]
+      product_2:
+        type: order_part1
+        pose:
+          xyz: [0.15, 0.15, 0]
+          rpy: [0, 0, 0]
       # product_3:
       #   type: order_part2
       #   pose:
