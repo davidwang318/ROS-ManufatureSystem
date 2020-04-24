@@ -28,6 +28,9 @@ AriacSensorManager::AriacSensorManager(){
     quality_control_2_subscriber_ = sensor_nh_.subscribe("/ariac/quality_control_sensor_2", 10,
                                                 &AriacSensorManager::QualityControl2Callback, this);
 
+    break_beam_subscriber_ = sensor_nh_.subscribe("/ariac/break_beam_1_change", 10,
+                                                &AriacSensorManager::BreakBeamCallback, this);
+
 
     camera0_frame_counter_ = 0;
     camera1_frame_counter_ = 1;
@@ -36,11 +39,12 @@ AriacSensorManager::AriacSensorManager(){
     camera4_frame_counter_ = 1;
     camera5_frame_counter_ = 1;
     camera6_frame_counter_ = 1;
+
     faultyTray1 = false;
     faultyTray2 = false;
+    beltFlag = false;
 
     init_ = false;
-    cam_0_ = false;
     cam_1_ = false;
     cam_2_ = false;
     cam_3_ = false;
@@ -57,16 +61,20 @@ AriacSensorManager::AriacSensorManager(){
 AriacSensorManager::~AriacSensorManager() {}
 
 
+void AriacSensorManager::BreakBeamCallback(const osrf_gear::Proximity::ConstPtr& break_msg){
+    if (break_msg -> object_detected) beltFlag = true;
+    return;
+}
+
 
 void AriacSensorManager::LogicalCamera0Callback(const osrf_gear::LogicalCameraImage::ConstPtr& image_msg){
-    if (init_) return;
-    if (image_msg->models.size() == 0) {
-        // ROS_INFO_STREAM("Logical Camera 1 does not see anything");
-    }
-    else{
-        ROS_INFO_STREAM_THROTTLE(10, "Logical camera 0: '" << image_msg->models.size() << "' objects.");   
-        current_parts_0_ = *image_msg;
-        this->BuildProductFrames(0);
+    if(beltFlag){
+
+        if (image_msg->models.size() > 0){
+            current_parts_0_ = *image_msg;
+            this->BuildProductFrames(0);
+            beltFlag = false;
+        }
     }
     return;
 }
@@ -152,16 +160,11 @@ void AriacSensorManager::QualityControl2Callback(const osrf_gear::LogicalCameraI
 
 void AriacSensorManager::BuildProductFrames(int camera_id){
     if (camera_id == 0) {
-        camera0_frame_counter_ = 0;
-        for (auto& msg : current_parts_0_.models) {
-            //--build the frame for each product
-            std::string product_frame = "logical_camera_0_" + msg.type + "_" +
-                                        std::to_string(camera0_frame_counter_) + "_frame";
-
-            product_frame_list_[0][msg.type].emplace_back(product_frame);
-            camera0_frame_counter_++;
-        }
-        cam_0_ = true;
+        // build the frame 
+        auto msg = current_parts_0_.models[0]; // Only the first part
+        std::string product_frame = "logical_camera_0_" + msg.type + "_" + std::to_string(beltMap[msg.type]++) + "_frame";
+        product_frame_list_[0][msg.type].emplace_back(product_frame);
+        std::cout << "++++++++" + product_frame << std::endl;
     }
     // ------------------------------------------------------------------------------------------
     // variable init is for preventing very large vector inside the product_frame_list_[i] (a map)

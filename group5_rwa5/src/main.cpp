@@ -54,7 +54,6 @@ int main(int argc, char **argv) {
     ros::init(argc, argv, "ariac_manager_node");
     ros::NodeHandle node;
     AriacOrderManager manager;
-    AriacSensorManager sensor;
     Competition comp(node);
 
     ros::Subscriber current_score_subscriber = node.subscribe(  

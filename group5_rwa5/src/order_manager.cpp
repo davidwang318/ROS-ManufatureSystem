@@ -129,6 +129,7 @@ void AriacOrderManager::PickFromBelt() {
 
     // Initialize some paremeters
     arm1_.PrepareRobot("belt");
+    camera_.product_frame_list_[0].clear(); // To have correct offset
     int productIdx_ = 0;
     std::string whichBin;
     state_ = "belt";
@@ -328,8 +329,9 @@ void AriacOrderManager::offsetPose(std::string type_, geometry_msgs::Pose& pose_
             pose_.position.z += 0.0025;
         }
         else if(type_ == "disk_part"){
-            pose_.position.y -= 0.325;
-            pose_.position.z += 0.01;
+        	pose_.position.x += 0.01;
+            pose_.position.y -= 0.35;
+            pose_.position.z += 0.008;
         }
         else{
             ROS_WARN(">>>>>> Undefined type. Don't know how to offset");
