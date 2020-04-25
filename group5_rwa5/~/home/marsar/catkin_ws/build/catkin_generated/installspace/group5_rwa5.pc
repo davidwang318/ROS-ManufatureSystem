@@ -1,8 +1,0 @@
-prefix=/usr/local
-
-Name: group5_rwa5
-Description: Description of group5_rwa5
-Version: 0.0.0
-Cflags: -I${prefix}/include
-Libs: -L${prefix}/lib 
-Requires: geometry_msgs moveit_ros_planning_interface osrf_gear roscpp sensor_msgs std_msgs std_srvs trajectory_msgs

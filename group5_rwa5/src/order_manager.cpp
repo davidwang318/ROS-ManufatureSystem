@@ -7,6 +7,10 @@
 #include <ros/ros.h>
 #include <std_srvs/Trigger.h>
 
+#include <tf2_ros/transform_listener.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include <tf2_ros/buffer.h>
+
 
 AriacOrderManager::AriacOrderManager(): arm1_{"arm1"}, arm2_{"arm2"}
 {
@@ -70,20 +74,18 @@ bool AriacOrderManager::PickAndPlace(const std::pair<std::string,geometry_msgs::
         failed_pick = pri_arm -> PickPart(part_pose);
     }
 
-    // ---- Flip it, if it is required ---- //
-    ROS_INFO_STREAM("[OrderManager][PickAndPlace]: Flipping Begins here: Pose of the part in the kit tray" << product_type_pose.second);
-
     // Condition for flipping
-    tf::Quaternion quaternionOfPartPose;
+    tf2::Quaternion quaternionOfPartPose;
+    tf2::fromMsg(product_type_pose.second.orientation, quaternionOfPartPose);
     double roll, pitch, yaw;
-    tf::Matrix3x3(quaternionOfPartPose).getRPY(roll, pitch, yaw);
-    if (abs(roll)> 3.12 && abs(roll) < 3.16) ROS_WARN_STREAM("[OrderManager][PickAndPlace]: This parts needs to be flipped");
+    tf2::Matrix3x3(quaternionOfPartPose).getRPY(roll, pitch, yaw); //  sometimes I am getting NAN values.
+    bool isFlippingRequired = false;
 
-    // Call Flipping Function. Return the position of the arm same as previous after flipping. So doesn't interfere with rest of the code.
-
-    ROS_INFO_STREAM("[OrderManager][PickAndPlace]: Flipping Begins here: Flipping Completed");
-
-    // ----------xxxxxxxxxxxxxxx------------//
+    ROS_INFO_STREAM("[OM]:[PickAndPlace]: R-P-Y of Part: " << roll << "; " << pitch << "; " << yaw);
+    if (abs(roll)> 3.12 && abs(roll) < 3.16) {
+        ROS_WARN_STREAM("[OrderManager][PickAndPlace]: This parts needs to be flipped");
+        isFlippingRequired = true;
+    }
 
     // Transmitted to other side by case
     if (transition){
@@ -112,6 +114,13 @@ bool AriacOrderManager::PickAndPlace(const std::pair<std::string,geometry_msgs::
             failed_pick = pri_arm -> PickPart(part_pose);      
         }
     }
+
+    // --------- Flip part started ----- //
+    if (isFlippingRequired) {
+        ROS_WARN_STREAM("[AriacOrderManager]:[PickAndPlace]: Calling RobotController::FlipPart()");
+        pri_arm->FlipPart(sec_arm);
+    }
+    // ------- Flip part over ---------- //
 
     // get the pose of the object in the tray from the order
     geometry_msgs::Pose drop_pose = product_type_pose.second;

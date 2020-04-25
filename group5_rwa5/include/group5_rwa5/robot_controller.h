@@ -34,6 +34,7 @@ public:
     void GripperCallback(const osrf_gear::VacuumGripperState::ConstPtr& grip);
     void GripperStateCheck(geometry_msgs::Pose pose);
     bool PickPart(geometry_msgs::Pose& part_pose);
+    void FlipPart(RobotController *otherArm); // Flip a part using both arms.
 
 private:
     ros::NodeHandle robot_controller_nh_;
@@ -76,10 +77,15 @@ private:
     std::vector<double> binJointPose5_;
     std::vector<double> binJointPose6_;
     std::vector<double> beltJointPose_;
+
     std::vector<double> dropJointPose_;
     std::vector<double> transJointPose_;
     std::vector<double> endJointPose_;
     std::vector<double> occluJointPose_;
+
+    std::vector<double> railLeftPose_;
+    std::vector<double> railRightPose_;
+
     std::string poseState;
     std::string arm_id_;
 

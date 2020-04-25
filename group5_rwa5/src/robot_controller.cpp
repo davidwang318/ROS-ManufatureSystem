@@ -39,6 +39,11 @@ RobotController::RobotController(std::string arm_id): robot_controller_nh_("/ari
         dropJointPose_ = {2.0, 2.3, -0.5, 1.3, 3.9, 4.7, 0};
         transJointPose_ = {0, 4.21, -1.1, 1.9, 3.9, 4.7, 0};
         endJointPose_ = {2.0, 1.45, -1.1, 1.9, 3.9, 4.7, 0};
+
+        // Add 2 poses for Pick up.
+        railLeftPose_ = {0.26, -1.63, -1.63, 1.63, 3.14, -1.63, 0}; // -- Calibrated?
+        railRightPose_ = {-0.195, -1.5, -1.63, 1.50, 0, 1.64, 0}; // -- Calibrated?
+
         // Add 1 special pose to prevent occlusion
         occluJointPose_ = {-1.2, 3.14, -1.1, 2.2, 3.2, 4.7, 0};
 
@@ -168,6 +173,8 @@ void RobotController::PrepareRobot(std::string task) {
     else if (task == "drop") jointPose = dropJointPose_;
     else if (task == "trans") jointPose = transJointPose_;
     else if (task == "occlusion") jointPose = occluJointPose_;
+    else if (task == "railArm1") jointPose = railLeftPose_;
+    else if (task == "railArm2") jointPose = railRightPose_;
     else jointPose = endJointPose_;
 
     // Handle possible occlusion
@@ -231,62 +238,6 @@ void RobotController::GripperToggle(const bool& state) {
         ROS_WARN_STREAM("Gripper activation failed!");
     }
 }
-
-// bool RobotController::dropPart(geometry_msgs::Pose part_pose) {
-//   counter_++;
-//
-//   pick = false;
-//   drop = true;
-//
-//   ROS_WARN_STREAM("Dropping the part number: " << counter_);
-//
-//   // ROS_INFO_STREAM("Moving to end of conveyor...");
-//   // robot_move_group_.setJointValueTarget(part_pose);
-//   // this->execute();
-//   // ros::Duration(1.0).sleep();
-//   // this->gripper_state_check(part_pose);
-//
-//   if (drop == false) {
-//     // ROS_INFO_STREAM("I am stuck here..." << object);
-//     ros::Duration(2.0).sleep();
-//     return drop;
-//   }
-//   ROS_INFO_STREAM("Dropping on AGV...");
-//
-//   // agv_position_.position.x -= 0.1;
-//   // if (counter_ == 1) {
-//   //   agv_position_.position.y -= 0.1;
-//   // }
-//   // if (counter_ >= 2) {
-//   //   agv_position_.position.y += 0.1;
-//   //   // agv_position_.position.x +=0.1;
-//   // }
-//
-//   auto temp_pose = part_pose;
-//   // auto temp_pose = agv_position_;
-//   temp_pose.position.z += 0.35;
-//   // temp_pose.position.y += 0.5;
-//
-//   // this->setTarget(part_pose);
-//   // this->execute();
-//   // ros::Duration(1.0).sleep();
-//   this->goToTarget({temp_pose, part_pose});
-//   ros::Duration(1).sleep();
-//   ROS_INFO_STREAM("Actuating the gripper...");
-//   this->gripperToggle(false);
-//
-//   // ROS_INFO_STREAM("Moving to end of conveyor...");
-//   // robot_move_group_.setJointValueTarget(endJointPose_);
-//   // this->execute();
-//   // ros::Duration(1.0).sleep();
-//
-//   ROS_INFO_STREAM("Going to home...");
-//   // this->sendRobotHome();
-//   // temp_pose = home_cart_pose_;
-//   // temp_pose.position.z -= 0.05;
-//   this->goToTarget({temp_pose, home_cart_pose_});
-//   return drop;
-// }
 
 bool RobotController::DropPart(geometry_msgs::Pose part_pose) {
     // counter_++;
@@ -355,4 +306,43 @@ bool RobotController::PickPart(geometry_msgs::Pose& part_pose) {
     ROS_INFO_STREAM("Going to waypoint...");
     this->GoToTarget(temp_pose_1);
     return gripper_state_;
+}
+
+/*
+ * Adding Flipping Functionality if a part needs to be flipped.
+ */
+void RobotController::FlipPart(RobotController *arm) {
+    ROS_WARN_STREAM("RobotController::FlipPart() > Function call received.");
+    auto otherArm = arm;
+
+    if (otherArm->arm_id_ == "arm2") std::cout << "Arm 1 takes help of Arm2" << std::endl;
+    else std::cout << "Arm 2 takes help of Arm 1" << std::endl;
+
+    // Send arms to appropriate home Positions
+    if (otherArm->arm_id_ == "arm2"){
+        this->PrepareRobot("bin3");
+        otherArm->PrepareRobot("bin5");
+        this->PrepareRobot("railArm1");
+        otherArm->PrepareRobot("railArm2");
+    }
+    else{
+        this->PrepareRobot("bin5");
+        otherArm->PrepareRobot("bin3");
+        this->PrepareRobot("railArm2");
+        otherArm->PrepareRobot("railArm1");
+    }
+
+    // Move Exchange the parts.
+
+    // Move the current Arm away
+
+    // Drop the Part
+
+    // Move the current Arm closer
+
+    // CurrentArm grabs the part
+
+    // Make sure each arms are in good home Position.
+
+
 }

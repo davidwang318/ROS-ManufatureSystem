@@ -75,10 +75,14 @@ int main(int argc, char **argv) {
 
     
     // manager.arm1_.PrepareRobot("end");
-    manager.PlanStrategy();
-
-    manager.SubmitAGV(manager.agv_id);
-    ROS_INFO_STREAM("Submitting AGV 1");
+//    manager.PlanStrategy();
+//
+//    manager.SubmitAGV(manager.agv_id);
+//    ROS_INFO_STREAM("Submitting AGV 1");
+    manager.arm1_.PrepareRobot("railArm1");
+    manager.arm1_.PrepareRobot("railArm2");
+    manager.arm2_.PrepareRobot("railArm1");
+    manager.arm2_.PrepareRobot("railArm2");
 
     //manager.ExecuteOrder();
     // EndCompetition(node);

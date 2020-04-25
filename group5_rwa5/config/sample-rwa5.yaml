@@ -19,15 +19,15 @@ orders:
     shipment_count: 1
     products:
       product_0:
-        type: order_part2
+        type: order_part1
         pose:
           xyz: [0.1, -0.2, 0]
-          rpy: [0, 0, 0]
+          rpy: ['pi', 0, 0]
       product_1:
         type: order_part1 # throw
         pose:
           xyz: [-0.1, -0.2, 0]
-          rpy: [0, 0, 0]
+          rpy: ['pi', 0, 0]
       # product_2:
       #   type: order_part3 # throw
       #   pose:
@@ -43,21 +43,21 @@ orders:
       #   pose:
       #     xyz: [0.0, 0.15, 0]
       #     rpy: [0, 0, 0]
-  order_0_update_0:
-    announcement_condition: wanted_products
-    announcement_condition_value: 1
-    shipment_count: 1
-    products:
-      product_0:
-        type: order_part1
-        pose:
-          xyz: [0.1, -0.2, 0]
-          rpy: [0, 0, 0]
-      product_1:
-        type: order_part3
-        pose:
-          xyz: [-0.1, -0.2, 0]
-          rpy: [0, 0, 0]
+#  order_0_update_0:
+#    announcement_condition: wanted_products
+#    announcement_condition_value: 1
+#    shipment_count: 1
+#    products:
+#      product_0:
+#        type: order_part1
+#        pose:
+#          xyz: [0.1, -0.2, 0]
+#          rpy: ['pi', 0, 0]
+#      product_1:
+#        type: order_part3
+#        pose:
+#          xyz: [-0.1, -0.2, 0]
+#          rpy: [0, 0, 0]
       # product_2:
       #   type: order_part1
       #   pose:

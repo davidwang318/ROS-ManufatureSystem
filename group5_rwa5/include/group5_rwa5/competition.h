@@ -55,22 +55,6 @@ class Competition {
             competition_state_ = msg->data;
         }
 
-        /// Called when a new Order message is received.
-//        void order_callback(const osrf_gear::Order::ConstPtr & order_msg) {
-//            //ROS_INFO_STREAM("Received order:\n" << *order_msg);
-//            ROS_INFO_STREAM("Pushing order\n");
-//            received_orders_.push_back(*order_msg);
-//
-//            //order_ = *order_msg;
-//            //--count for the number of orders in the trial config file
-//
-//            //-- number of orders the trial file has
-//            //auto shipments = order1_.shipments;
-//
-//            //auto product_type = shipments[0].products[0].type;
-//        }
-
-
         /// Called when a new JointState message is received.
         void arm_1_joint_state_callback(
                 const sensor_msgs::JointState::ConstPtr & joint_state_msg)
