@@ -2,7 +2,7 @@ sensors:
   break_beam_1:
     type: break_beam
     pose:
-      xyz: [1.6, 2.6, 0.91]
+      xyz: [1.6, 2.42, 0.91]
       rpy: [0, 0, 'pi']
   logical_camera_0: # Arm1 belt
     type: logical_camera
