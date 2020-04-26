@@ -59,14 +59,14 @@ RobotController::RobotController(std::string arm_id): robot_controller_nh_("/ari
 
     }
     else{
+        binJointPose3_ = {1.5, 2.6, -0.7, 2.37, 3, 4.7, 0};
         binJointPose2_ = binJointPose3_;
-        binJointPose3_ = {1.1, 2.6, -0.7, 2.37, 3, 4.7, 0};
         binJointPose4_ = {0.7, 3.14, -0.7, 2.2, 3.2, 4.7, 0};
         binJointPose5_ = {-0.1, 3.14, -0.7, 2.2, 3.2, 4.7, 0};
         binJointPose6_ = {-0.9, 3.14, -0.7, 2.2, 3.2, 4.7, 0};
         dropJointPose_ = {-1.5, 3.9, -0.5, 1.3, 3.9, 4.7, 0};
         transJointPose_ = {0, 1.57, -1.1, 1.9, 3.9, 4.7, 0};
-        endJointPose_ = {-1.5, 4.5, -0.5, 1.3, 3.9, 4.7, 0};
+        endJointPose_ = {-1.5, 4.5, -1.1, 1.9, 3.9, 4.7, 0};
         occluJointPose_ = {1.1, 2.6, -1.1, 2.37, 3, 4.7, 0};
 
         //--topic used to get the status of the gripper

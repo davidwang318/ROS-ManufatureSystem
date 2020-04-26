@@ -40,11 +40,12 @@ public:
 
     bool beltFlag;
     std::map<std::string, int> beltMap;
-    std::vector<std::map<std::string, std::vector<std::string>>> product_frame_list_;
 
     geometry_msgs::Pose GetPartPose(const std::string& src_frame,
                                     const std::string& target_frame);
+
     std::map<std::string, std::vector<std::string>> get_product_frame_list(int i) { return product_frame_list_[i]; }
+    std::vector<std::map<std::string, std::vector<std::string>>> product_frame_list_;
     
     void BuildProductFrames(int);
 
@@ -76,7 +77,6 @@ private:
     osrf_gear::LogicalCameraImage current_parts_5_;
     osrf_gear::LogicalCameraImage current_parts_6_;
 
-    std::map<std::string, std::vector<geometry_msgs::Pose>> part_list_;
     // std::vector<AriacPartManager> camera1_part_list,camera2_part_list,camera3_part_list;
 
     //std::map<std::string, std::list<std::string>> parts_list_;

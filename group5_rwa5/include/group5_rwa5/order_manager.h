@@ -21,20 +21,22 @@ public:
     AriacOrderManager();
     ~AriacOrderManager();
     void OrderCallback(const osrf_gear::Order::ConstPtr& order_msg);
-    void PickFromBelt();
-    void PickFromBin();
-    std::string GetProductFrame(std::string product_type);
+    bool PickFromBelt();
+    bool PickFromBin();
+    std::string GetProductFrame(std::string product_type, int bin_num);
     std::map<std::string, std::list<std::pair<std::string,geometry_msgs::Pose>>> GetOrder();
-    bool PickAndPlace(const std::pair<std::string,geometry_msgs::Pose> product_type_pose, int agv_id, int whichArm, bool transition, int placed_index);
+    bool PickAndPlace(const std::pair<std::string,geometry_msgs::Pose> product_type_pose, int agv_id, int whichArm, bool transition, int placed_index, int bin_num);
+    bool PickAndPlaceBelt(std::string whichBin, bool transition);
     void SubmitAGV(int num);
     void offsetPose(std::string type_, geometry_msgs::Pose& pose_);
 
     void PrintOrder();
     void PrintShipment();
     void UpdateOrder(int productIdx);
-    void PlanStrategyOrder();
-    void PlanStrategyShipment(osrf_gear::Order order);
+    void PlanBeltStrategy();
+    void PlanStrategyShipment();
     bool CheckUpdate();
+    void FindEmptySpace();
 
     RobotController arm1_;
     RobotController arm2_;
@@ -54,13 +56,22 @@ public:
     std::vector<std::string> received_shipment_type;
     std::vector<geometry_msgs::Pose> received_shipment_pose;
 
+    bool bin_end = false;
+
+    // Belt attributes:
+    std::map<std::string, int> belt_part_num; // number of each type needed to pick from belt
+    std::map<int, std::vector<geometry_msgs::Pose>> empty_place; // place where to part should be put
+    bool belt_end = false; // Force quit the belt strategy
+    int empty_count = 0;
+
+
 
 private:
     ros::NodeHandle order_manager_nh_;
     ros::Subscriber order_subscriber_;
     AriacSensorManager camera_;
     tf::TransformListener part_tf_listener_;
-    std::pair<std::string,geometry_msgs::Pose> product_type_pose_;
+    std::pair<std::string, geometry_msgs::Pose> product_type_pose_;
     std::string object;
     std::map<std::string, std::vector<std::string>> product_frame_list_;
     osrf_gear::Order order_;
