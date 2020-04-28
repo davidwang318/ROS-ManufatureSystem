@@ -26,6 +26,7 @@ public:
     std::string GetProductFrame(std::string product_type, int bin_num);
     std::map<std::string, std::list<std::pair<std::string,geometry_msgs::Pose>>> GetOrder();
     bool PickAndPlace(const std::pair<std::string,geometry_msgs::Pose> product_type_pose, int agv_id, int whichArm, bool transition, int placed_index, int bin_num);
+    void PickAndPlaceDrop(int whichArm, std::string product_type, std::string product_frame, geometry_msgs::Pose end_pose);
     bool PickAndPlaceBelt(std::string whichBin, bool transition);
     void SubmitAGV(int num);
     void offsetPose(std::string type_, geometry_msgs::Pose& pose_);

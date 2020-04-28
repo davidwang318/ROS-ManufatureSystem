@@ -20,7 +20,12 @@ AriacSensorManager::AriacSensorManager(){
                                                 &AriacSensorManager::LogicalCamera5Callback, this);
     camera_6_subscriber_ = sensor_nh_.subscribe("/ariac/logical_camera_6", 10,
                                                 &AriacSensorManager::LogicalCamera6Callback, this);
+
     camera_7_subscriber_ = sensor_nh_.subscribe("/ariac/logical_camera_7", 10,
+                                                &AriacSensorManager::LogicalCamera7Callback, this);
+    camera_8_subscriber_ = sensor_nh_.subscribe("/ariac/logical_camera_8", 10,
+                                                &AriacSensorManager::LogicalCamera7Callback, this);
+    camera_9_subscriber_ = sensor_nh_.subscribe("/ariac/logical_camera_9", 10,
                                                 &AriacSensorManager::LogicalCamera7Callback, this);
 
     quality_control_1_subscriber_ = sensor_nh_.subscribe("/ariac/quality_control_sensor_1", 10,
@@ -62,18 +67,21 @@ AriacSensorManager::~AriacSensorManager() {}
 
 
 void AriacSensorManager::BreakBeamCallback(const osrf_gear::Proximity::ConstPtr& break_msg){
-    if (break_msg -> object_detected) beltFlag = true;
+    if (break_msg -> object_detected){
+        beltFlag = true;
+    }
     return;
 }
 
 
 void AriacSensorManager::LogicalCamera0Callback(const osrf_gear::LogicalCameraImage::ConstPtr& image_msg){
     if(beltFlag){
-
         if (image_msg->models.size() > 0){
-            current_parts_0_ = *image_msg;
-            this->BuildProductFrames(0);
             beltFlag = false;
+            current_parts_0_ = *image_msg;
+            auto type = current_parts_0_.models[0].type;
+            if(type == "pulley_part" && breakBeamCnt++ % 2 == 1) return;
+            this->BuildProductFrames(0);
         }
     }
     return;

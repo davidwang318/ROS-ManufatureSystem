@@ -30,17 +30,19 @@ RobotController::RobotController(std::string arm_id): robot_controller_nh_("/ari
 
     //--These are joint positions used for the home position
     if(arm_id == "arm1"){
-        binJointPose1_ = {1.2, 3.14, -0.7, 2.2, 3.2, 4.7, 0};
-        binJointPose2_ = {0.4, 3.14, -0.7, 2.2, 3.2, 4.7, 0};
-        binJointPose3_ = {-0.4, 3.14, -0.7, 2.2, 3.2, 4.7, 0};
-        binJointPose4_ = {-1.2, 3.14, -0.7, 2.2, 3.2, 4.7, 0};
+        binJointPose1_ = {1.2, 3.14, -1.1, 1.9, 3.9, 4.7, 0};
+        binJointPose2_ = {0.4, 3.14, -1.1, 1.9, 3.9, 4.7, 0};
+        binJointPose3_ = {-0.4, 3.14, -1.1, 1.9, 3.9, 4.7, 0};
+        binJointPose4_ = {-1.2, 3.14, -1.1, 1.9, 3.9, 4.7, 0};
         binJointPose5_ = binJointPose4_;
-        beltJointPose_ = {1, 0, -1.1, 1.9, 3.9, 4.7, 0};
+        beltJointPose_ = {1, 3.14*2, -1.1, 1.9, 3.9, 4.7, 0};
         dropJointPose_ = {1.2, 2.3, -0.5, 1.3, 3.9, 4.7, 0};
         transJointPose_ = {0, 4.21, -1.1, 1.9, 3.9, 4.7, 0};
         endJointPose_ = {1.2, 1.45, -1.1, 1.9, 3.9, 4.7, 0};
         // Add 1 special pose to prevent occlusion
         occluJointPose_ = {-1.2, 3.14, -1.1, 2.2, 3.2, 4.7, 0};
+        // Transfer Pose
+        railPose_ = {0.1, 4.71, -1.1, 1.9, 3.9-1.56, 4.7, 0}; // -- Calibrated for Arm1
 
         //--topic used to get the status of the gripper
         gripper_subscriber_ = gripper_nh_.subscribe(
@@ -57,17 +59,27 @@ RobotController::RobotController(std::string arm_id): robot_controller_nh_("/ari
         gripper_client_ = robot_controller_nh_.serviceClient<osrf_gear::VacuumGripperControl>(
                 "/ariac/arm1/gripper/control");
 
+        // Exchange pose
+        exchange_pose.position.x = 0.3;
+        exchange_pose.position.y = 0+0.0425;
+        exchange_pose.position.z = 1.4;
+
+
     }
     else{
-        binJointPose3_ = {1.5, 2.6, -0.7, 2.37, 3, 4.7, 0};
+        // -0.7, 2.2, 3.2, 4.7, 0
+        // binJointPose3_ = {1.5, 2.6, -0.7, 2.37, 3, 4.7, 0};
+        binJointPose3_ = {1.5, 2.6, -1.1, 1.9, 3.9, 4.7, 0};
         binJointPose2_ = binJointPose3_;
-        binJointPose4_ = {0.7, 3.14, -0.7, 2.2, 3.2, 4.7, 0};
-        binJointPose5_ = {-0.1, 3.14, -0.7, 2.2, 3.2, 4.7, 0};
-        binJointPose6_ = {-0.9, 3.14, -0.7, 2.2, 3.2, 4.7, 0};
+        binJointPose4_ = {0.7, 3.14, -1.1, 1.9, 3.9, 4.7, 0};
+        binJointPose5_ = {-0.1, 3.14, -1.1, 1.9, 3.9, 4.7, 0};
+        binJointPose6_ = {-0.9, 3.14, -1.1, 1.9, 3.9, 4.7, 0};
         dropJointPose_ = {-1.5, 3.9, -0.5, 1.3, 3.9, 4.7, 0};
         transJointPose_ = {0, 1.57, -1.1, 1.9, 3.9, 4.7, 0};
         endJointPose_ = {-1.5, 4.5, -1.1, 1.9, 3.9, 4.7, 0};
         occluJointPose_ = {1.1, 2.6, -1.1, 2.37, 3, 4.7, 0};
+        // Transfer Pose
+        railPose_ = {-0.1, 1.57, -1.1, 1.9, 3.9-1.56, 4.7, 0}; // -- Calibrated - Yes for Arm2
 
         //--topic used to get the status of the gripper
         gripper_subscriber_ = gripper_nh_.subscribe(
@@ -83,6 +95,11 @@ RobotController::RobotController(std::string arm_id): robot_controller_nh_("/ari
 
         gripper_client_ = robot_controller_nh_.serviceClient<osrf_gear::VacuumGripperControl>(
                 "/ariac/arm2/gripper/control");
+
+        // Exchange pose
+        exchange_pose.position.x = 0.3;
+        exchange_pose.position.y = 0-0.0425;
+        exchange_pose.position.z = 1.4;
     }
 }
 
@@ -120,7 +137,7 @@ void RobotController::GoToTarget(const geometry_msgs::Pose& pose) {
     spinner.start();
     if (this->Planner()) {
         robot_move_group_.move();
-        ros::Duration(0.5).sleep();
+        ros::Duration(0.75).sleep();
     }
     // ROS_INFO_STREAM("Point reached...");
 }
@@ -169,6 +186,7 @@ void RobotController::PrepareRobot(std::string task) {
     else if (task == "drop") jointPose = dropJointPose_;
     else if (task == "trans") jointPose = transJointPose_;
     else if (task == "occlusion") jointPose = occluJointPose_;
+    else if (task == "rail") jointPose = railPose_;
     else jointPose = endJointPose_;
 
     // Handle possible occlusion
@@ -177,6 +195,7 @@ void RobotController::PrepareRobot(std::string task) {
     }
     else{
         if(task == "end" && poseState == "bin2") PrepareRobot("occlusion");
+        if(task == "trans" && poseState == "drop") PrepareRobot("occlusion");
     }
 
     poseState = task;
@@ -218,7 +237,7 @@ void RobotController::PrepareRobot(std::string task) {
     home_cart_pose_.orientation.y = robot_tf_transform_.getRotation().y();
     home_cart_pose_.orientation.z = robot_tf_transform_.getRotation().z();
     home_cart_pose_.orientation.w = robot_tf_transform_.getRotation().w();
-    // ros::Duration(2.0).sleep();
+    // ros::Duration(0.5).sleep();
 }
 
 void RobotController::GripperToggle(const bool& state) {
@@ -233,64 +252,7 @@ void RobotController::GripperToggle(const bool& state) {
     }
 }
 
-// bool RobotController::dropPart(geometry_msgs::Pose part_pose) {
-//   counter_++;
-//
-//   pick = false;
-//   drop = true;
-//
-//   ROS_WARN_STREAM("Dropping the part number: " << counter_);
-//
-  // ROS_INFO_STREAM("Moving to end of conveyor...");
-//   // robot_move_group_.setJointValueTarget(part_pose);
-//   // this->execute();
-//   // ros::Duration(1.0).sleep();
-//   // this->gripper_state_check(part_pose);
-//
-//   if (drop == false) {
-//     // ROS_INFO_STREAM("I am stuck here..." << object);
-//     ros::Duration(2.0).sleep();
-//     return drop;
-//   }
-//   ROS_INFO_STREAM("Dropping on AGV...");
-//
-//   // agv_position_.position.x -= 0.1;
-//   // if (counter_ == 1) {
-//   //   agv_position_.position.y -= 0.1;
-//   // }
-//   // if (counter_ >= 2) {
-//   //   agv_position_.position.y += 0.1;
-//   //   // agv_position_.position.x +=0.1;
-//   // }
-//
-//   auto temp_pose = part_pose;
-//   // auto temp_pose = agv_position_;
-//   temp_pose.position.z += 0.35;
-//   // temp_pose.position.y += 0.5;
-//
-//   // this->setTarget(part_pose);
-//   // this->execute();
-//   // ros::Duration(1.0).sleep();
-//   this->goToTarget({temp_pose, part_pose});
-//   ros::Duration(1).sleep();
-//   ROS_INFO_STREAM("Actuating the gripper...");
-//   this->gripperToggle(false);
-//
-//   // ROS_INFO_STREAM("Moving to end of conveyor...");
-//   // robot_move_group_.setJointValueTarget(endJointPose_);
-//   // this->execute();
-//   // ros::Duration(1.0).sleep();
-//
-//   ROS_INFO_STREAM("Going to home...");
-//   // this->sendRobotHome();
-//   // temp_pose = home_cart_pose_;
-//   // temp_pose.position.z -= 0.05;
-//   this->goToTarget({temp_pose, home_cart_pose_});
-//   return drop;
-// }
-
 bool RobotController::DropPart(geometry_msgs::Pose part_pose) {
-    // counter_++;
 
     drop_flag_ = true;
 
@@ -298,21 +260,18 @@ bool RobotController::DropPart(geometry_msgs::Pose part_pose) {
     // ROS_INFO_STREAM("Placing phase activated...");
 
     if (gripper_state_){//--while the part is still attached to the gripper
-        //--move the robot to the end of the rail
-         // ROS_INFO_STREAM("Moving towards AGV...");
+        // move the robot to the end of the rail
+        this->PrepareRobot("end");
+        ros::Duration(0.5).sleep();
+        if(!gripper_state_) return true; // check drop part case 1
 
-         PrepareRobot("end");
-         ros::Duration(0.5).sleep();
+        part_pose.position.z += 0.1;
+        this->GoToTarget(part_pose);
+        if(!gripper_state_) return true; // check drop part case 2
 
-         part_pose.position.z += 0.1;
-         // ROS_INFO_STREAM("Go to the correct position...");
-         this->GoToTarget(part_pose);
-
-         // ROS_INFO_STREAM("Releasing the gripper...");
-         this->GripperToggle(false);
+        this->GripperToggle(false);
          
-         part_pose.position.z += 0.2;
-         this->GoToTarget(part_pose);
+        this->PrepareRobot("end");
     }
 
     drop_flag_ = false;

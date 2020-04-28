@@ -51,6 +51,8 @@ public:
 
     bool CheckForQuality(int i); // Checks for the quality of the parts present in the kit tray
 
+    int breakBeamCnt = 0;
+
 private:
     ros::NodeHandle sensor_nh_;
     ros::Subscriber break_beam_subscriber_;
@@ -61,7 +63,9 @@ private:
     ros::Subscriber camera_4_subscriber_;
     ros::Subscriber camera_5_subscriber_;
     ros::Subscriber camera_6_subscriber_;
-    ros::Subscriber camera_7_subscriber_;
+    ros::Subscriber camera_7_subscriber_; // rail
+    ros::Subscriber camera_8_subscriber_; // agv1
+    ros::Subscriber camera_9_subscriber_; // agv2
     ros::Subscriber quality_control_1_subscriber_; //-- For subscribing to the quality control sensor topic
     ros::Subscriber quality_control_2_subscriber_;
 

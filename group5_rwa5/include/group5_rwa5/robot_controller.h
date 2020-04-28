@@ -35,6 +35,10 @@ public:
     void GripperStateCheck(geometry_msgs::Pose pose);
     bool PickPart(geometry_msgs::Pose& part_pose);
 
+    // For exchanging the part
+    geometry_msgs::Pose exchange_pose;
+    bool gripper_state_, drop_flag_;
+
 private:
     ros::NodeHandle robot_controller_nh_;
     moveit::planning_interface::MoveGroupInterface::Options robot_controller_options;
@@ -66,7 +70,6 @@ private:
     double roll_def_,pitch_def_,yaw_def_;
     tf::Quaternion q;
     int counter_;
-    bool gripper_state_, drop_flag_;
 
     // Attributes for PrepareRobot
     std::vector<double> binJointPose1_;
@@ -80,6 +83,7 @@ private:
     std::vector<double> transJointPose_;
     std::vector<double> endJointPose_;
     std::vector<double> occluJointPose_;
+    std::vector<double> railPose_;
     std::string poseState;
     std::string arm_id_;
 

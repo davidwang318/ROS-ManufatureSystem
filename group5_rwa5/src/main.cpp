@@ -72,15 +72,11 @@ int main(int argc, char **argv) {
     ros::spinOnce();
     ros::Duration(1).sleep();
 
-    
-
     manager.PlanBeltStrategy();
     manager.PlanStrategyShipment();
 
-
-    //manager.ExecuteOrder();
-    // EndCompetition(node);
-    // ROS_WARN_STREAM("Killing the node....");
+    EndCompetition(node);
+    ROS_WARN_STREAM("Killing the node....");
 
     return 0;
 }

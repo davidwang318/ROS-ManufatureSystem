@@ -44,3 +44,17 @@ sensors:
     pose:
       xyz: [-0.725526, 1.906386, 1.010642]
       rpy: [1.566644, 0.799727, 0.007013]
+
+
+  logical_camera_8:
+    type: logical_camera
+    pose:
+      xyz: [0.605519, 3.152217, 1.097212]
+      rpy: [3.124760, 0.981565, 3.135169]
+
+  logical_camera_9:
+    type: logical_camera
+    pose:
+      xyz: [0.618177, -3.146612, 1.040268]
+      rpy: [3.126846, 0.883774, 3.137762]
+

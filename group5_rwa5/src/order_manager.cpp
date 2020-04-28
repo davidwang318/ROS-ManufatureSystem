@@ -7,6 +7,9 @@
 #include <ros/ros.h>
 #include <std_srvs/Trigger.h>
 #include <string> 
+#include <tf2_ros/transform_listener.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include <tf2_ros/buffer.h>
 
 
 AriacOrderManager::AriacOrderManager(): arm1_{"arm1"}, arm2_{"arm2"}
@@ -18,6 +21,9 @@ AriacOrderManager::AriacOrderManager(): arm1_{"arm1"}, arm2_{"arm2"}
     trans_pose.position.x = 0.3;
     trans_pose.position.y = 0;
     trans_pose.position.z = 1;
+
+    arm1_.PrepareRobot("bin2");
+    arm2_.PrepareRobot("bin6");
 }
 
 AriacOrderManager::~AriacOrderManager(){}
@@ -40,7 +46,7 @@ std::string AriacOrderManager::GetProductFrame(std::string product_type, int num
     }
 }
 
-// Stage 1
+// Stage 1: belt
 //////////////////////////////////////////////////////////////////////////////////////////
 
 void AriacOrderManager::PlanBeltStrategy(){
@@ -313,6 +319,11 @@ bool AriacOrderManager::PickAndPlaceBelt(std::string whichBin, bool transition){
     // place
     // arm1_.PrepareRobot("end"); // solve conflict
     arm1_.PrepareRobot(whichBin);
+    if (product_type_pose_.first == "pulley_part"){
+        auto tmp_pose = product_type_pose_.second;
+        tmp_pose.position.z += 0.3;
+        arm1_.GoToTarget(tmp_pose);
+    }
     arm1_.GoToTarget(product_type_pose_.second);
     arm1_.GripperToggle(false);
     product_type_pose_.second.position.z += 0.3;
@@ -332,7 +343,7 @@ bool AriacOrderManager::PickAndPlaceBelt(std::string whichBin, bool transition){
 }
 
 
-// Stage 2
+// Stage 2: bin
 //////////////////////////////////////////////////////////////////////////////////////////
 
 void AriacOrderManager::PlanStrategyShipment(){
@@ -414,6 +425,10 @@ void AriacOrderManager::PlanStrategyShipment(){
 		            }
 		        }
 		        while(fromBin > 0 && !bin_end);
+
+                // TODO: Final Check...
+                /////////////////////////////////////////////////////////////////
+                /////////////////////////////////////////////////////////////////
 
 		        // Submit the agv
 		        SubmitAGV(agv_id);
@@ -533,6 +548,51 @@ bool AriacOrderManager::PickAndPlace(const std::pair<std::string,geometry_msgs::
         failed_pick = pri_arm -> PickPart(part_pose);
     }
 
+    // Condition for flipping
+    tf2::Quaternion quaternionOfPartPose;
+    tf2::fromMsg(product_type_pose.second.orientation, quaternionOfPartPose);
+    double roll, pitch, yaw;
+    tf2::Matrix3x3(quaternionOfPartPose).getRPY(roll, pitch, yaw); //  sometimes I am getting NAN values.
+    bool isFlippingRequired = false;
+
+    ROS_INFO_STREAM("[OM]:[PickAndPlace]: R-P-Y of Part: " << roll << "; " << pitch << "; " << yaw);
+    if (abs(roll)> 3.12 && abs(roll) < 3.16) {
+        ROS_WARN_STREAM("[OrderManager][PickAndPlace]: This parts needs to be flipped");
+        isFlippingRequired = true;
+    }
+
+    // Flipped the part
+    if(isFlippingRequired){
+        // Prepare the robot
+        pri_arm -> PrepareRobot("rail");
+        sec_arm -> PrepareRobot("rail");
+        pri_arm -> GoToTarget(pri_arm -> exchange_pose);
+        sec_arm -> GoToTarget(sec_arm -> exchange_pose);
+
+        // Exchanging the part
+        sec_arm -> GripperToggle(true);
+        ros::spinOnce();
+        ros::Duration(0.5).sleep();
+        while (!sec_arm -> gripper_state_) {
+            ROS_INFO_STREAM(" Keep Actuating the gripper for exchanging the part...");
+            sec_arm -> GripperToggle(true);
+            ros::spinOnce();
+            ros::Duration(0.5).sleep();
+        }
+        pri_arm -> GripperToggle(false);
+
+        // Seperate
+        auto seperate_pose = pri_arm -> exchange_pose;
+        if(whichArm == 1) seperate_pose.position.y += 0.2;
+        else seperate_pose.position.y -= 0.2;
+        pri_arm -> GoToTarget(seperate_pose);
+
+        // Swap pri and sec: pri arm is the arm with the part
+        if (whichArm == 1) whichArm = 2;
+        else whichArm = 1; 
+        std::swap(pri_arm, sec_arm);
+        transition = !transition;
+    }
 
     // Transmitted to other side by case
     if (transition){
@@ -544,6 +604,7 @@ bool AriacOrderManager::PickAndPlace(const std::pair<std::string,geometry_msgs::
         pri_arm -> GoToTarget(trans_pose);
         pri_arm -> GripperToggle(false);
         pri_arm -> GoToTarget(trans_pose_up);
+        ros::spinOnce(); // make sure its the newest frame 
         if (whichArm == 1) pri_arm -> PrepareRobot("bin2");
         else pri_arm -> PrepareRobot("bin5");
         sec_arm -> PrepareRobot("trans");
@@ -555,7 +616,8 @@ bool AriacOrderManager::PickAndPlace(const std::pair<std::string,geometry_msgs::
 
         product_frame[15] = '7';
         part_pose = camera_.GetPartPose("/world",product_frame);
-        this -> offsetPose(product_type, part_pose);
+        if(isFlippingRequired) part_pose.position.z -= 0.03; // Need to be improved!
+        else this -> offsetPose(product_type, part_pose);
 
         failed_pick = pri_arm -> PickPart(part_pose);
         while(!failed_pick){
@@ -563,8 +625,7 @@ bool AriacOrderManager::PickAndPlace(const std::pair<std::string,geometry_msgs::
             failed_pick = pri_arm -> PickPart(part_pose);      
         }
 
-        if(whichArm == 1) pri_arm -> PrepareRobot("bin3");
-    	else pri_arm -> PrepareRobot("bin4");
+        ros::Duration(0.5).sleep();
     }
 
     // get the pose of the object in the tray from the order
@@ -579,31 +640,63 @@ bool AriacOrderManager::PickAndPlace(const std::pair<std::string,geometry_msgs::
     else if(product_type == "disk_part") StampedPose_out.pose.position.z += 0.02;
 
     // Drop the part on the tray and check its quality
-    auto result = pri_arm -> DropPart(StampedPose_out.pose);
+    bool dropCase = pri_arm -> DropPart(StampedPose_out.pose);
+    if(dropCase) PickAndPlaceDrop(whichArm, product_type, product_frame, StampedPose_out.pose);
+
     if(camera_.CheckForQuality(whichArm)){
         auto tmp = pri_arm -> PickPart(StampedPose_out.pose);
         pri_arm -> PrepareRobot("drop");
         pri_arm -> GripperToggle(false);
+        pri_arm -> PrepareRobot("end");
         return false;
     }
 
     // Save the sequence and position of the part for update check 
     placed_order[placed_index] = StampedPose_out.pose;
 
-   	// Check Frame construction:
-	for (int i = 1; i < 7; i++){
-		auto tmp = camera_.get_product_frame_list(i);
-		std::cout << "--Bin" << i << std::endl;
-		for(auto t : tmp){
-			std::cout << t.first << std::endl;
-			for(auto a : t.second){
-				std::cout << a << std::endl;
-			}
-		}
-		std::cout << "-----------------" << std::endl;
-	}
+ //   	// Check Frame construction:
+	// for (int i = 1; i < 7; i++){
+	// 	auto tmp = camera_.get_product_frame_list(i);
+	// 	std::cout << "--Bin" << i << std::endl;
+	// 	for(auto t : tmp){
+	// 		std::cout << t.first << std::endl;
+	// 		for(auto a : t.second){
+	// 			std::cout << a << std::endl;
+	// 		}
+	// 	}
+	// 	std::cout << "-----------------" << std::endl;
+	// }
 
     return true;
+}
+
+void AriacOrderManager::PickAndPlaceDrop(int whichArm, std::string product_type, std::string product_frame, geometry_msgs::Pose end_pose){
+    // Get the current arm and frame
+    auto arm = &arm1_;
+    product_frame[15] = '8';
+    if(whichArm == 2) {
+        arm = &arm2_;
+        product_frame[15] = '9';
+    }
+
+    // Find the pose
+    auto part_pose = camera_.GetPartPose("/world",product_frame);
+    this -> offsetPose(product_type, part_pose);
+
+    // Pick the part
+    bool failed_pick = arm -> PickPart(part_pose);
+    while(!failed_pick){
+        part_pose.position.z -= 0.03;
+        failed_pick = arm -> PickPart(part_pose);
+    }
+
+    // Place it to the correct pose
+    end_pose.position.z += 0.1;
+    arm -> GoToTarget(end_pose);
+    arm -> GripperToggle(false);       
+    arm -> PrepareRobot("end");
+
+    return;
 }
 
 void AriacOrderManager::SubmitAGV(int num) {
@@ -629,27 +722,30 @@ void AriacOrderManager::SubmitAGV(int num) {
 
 void AriacOrderManager::offsetPose(std::string type_, geometry_msgs::Pose& pose_){
     if (state_ == "belt"){
-        if(type_ == "gasket_part"){       
-            pose_.position.x += 0.01;
-            pose_.position.y -= 0.365;
-            pose_.position.z += 0.0115;
+        if(type_ == "gasket_part"){
+            pose_.position.x -= 0.007;
+            pose_.position.y -= 0.306;
+            pose_.position.z += 0.0089;
         }
         else if(type_ == "piston_rod_part"){
             pose_.position.x += 0.005;
-            pose_.position.y -= 0.325;
-            pose_.position.z -= 0.008;
+            pose_.position.y -= 0.2711;
+            pose_.position.z -= 0.0079;
         }
         else if(type_ == "gear_part"){
-            pose_.position.y -= 0.35;
-            pose_.position.z += 0.0025;
+            pose_.position.x += 0.005;
+            pose_.position.y -= 0.349;
+            pose_.position.z += 0.00285;
         }
         else if(type_ == "disk_part"){
-        	pose_.position.x += 0.01;
-            pose_.position.y -= 0.35;
-            pose_.position.z += 0.008;
+            pose_.position.x += 0.0035;
+            pose_.position.y -= 0.3117;
+            pose_.position.z += 0.01379;
         }
-        else{
-            ROS_WARN(">>>>>> Undefined type. Don't know how to offset");
+        else if(type_ == "pulley_part"){
+            pose_.position.x += 0.01;
+            pose_.position.y -= 0.35;
+            pose_.position.z += 0.06148;
         }
     }
     else{
@@ -743,8 +839,6 @@ bool AriacOrderManager::CheckUpdate(){
     int update_order_idx = -1;
     osrf_gear::Shipment update_shipment;
 
-    std::cout << "test2" << std::endl;
-
     // Search the order
     std::string compare_id = order_id + "_update_0";
     for (int i = 0; i < received_orders_.size(); i++){
@@ -760,7 +854,7 @@ bool AriacOrderManager::CheckUpdate(){
     else{
         update_shipment = received_orders_[update_order_idx].shipments[shipment_num];
     }
-    std::cout << "Find new order" << std::endl;
+    std::cout << "====== Find new order ======" << std::endl;
 
     // Compare the update shipment with the current shipment
     std::map<int, int> correctIdxMap;
